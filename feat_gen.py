@@ -5,7 +5,7 @@ from collections import OrderedDict
 _OBJS = ('head', 'wrist', 'steering', 'radio', 'phone',
     'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone')
 
-_CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
+CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
 
 _FEATS = OrderedDict({
     'f0' : ('Presense of steering with both hands', 'both_hands_steering'),
@@ -82,7 +82,7 @@ def _get_mean_centroid(obj_dict, obj_type):
     """ returns mean centroid of head for all 10 classes. Also returns the dictionary containing centroid of head for all
     images, replacing the missing values by the mean
     """
-    def __get_cat_head_mean(obj_dict, obj_type, cat):
+    def __get_cat_mean(obj_dict, obj_type, cat):
         mean_centroid = [0., 0.]
         cnt = 0
         for img, objs in obj_dict.iteritems():
@@ -93,8 +93,8 @@ def _get_mean_centroid(obj_dict, obj_type):
         return [mean_centroid[0]/cnt, mean_centroid[1]/cnt]
 
     mean_cent = []
-    for cls in _CLASSES:
-        mean_cent.append(__get_cat_head_mean(obj_dict, obj_type, cls))
+    for cls in CLASSES:
+        mean_cent.append(__get_cat_mean(obj_dict, obj_type, cls))
 
     return mean_cent
 
@@ -204,18 +204,18 @@ def _filter_detections(obj_dict):
 
         return pf_dict
 
-    for img, objs in filtered_dict.iteritems():
-        if(len(objs['head']) > 1):
-            print('Image contains multiple head detections {:s} , {:d}'.format(img, len(objs['head'])))
+    #for img, objs in filtered_dict.iteritems():
+    #    if(len(objs['head']) > 1):
+    #        print('Image contains multiple head detections {:s} , {:d}'.format(img, len(objs['head'])))
 
     print('Filtering head...')
     filtered_dict = __filter_head(filtered_dict)
     print('Filtering steering...')
     filtered_dict = __filter_steering(filtered_dict)
     print('Filtering hands on steering objects...')
-    filtered_dict = __filter_hands_steering(filtered_dict)
+    #filtered_dict = __filter_hands_steering(filtered_dict)
     print('Filtering multiple detections of phone with hands...')
-    filtered_dict =  __filter_phone_with_hands(filtered_dict)
+    #filtered_dict =  __filter_phone_with_hands(filtered_dict)
     print('Filtering multiple detections of phone...')
     filtered_dict =  __filter_phone(filtered_dict)
     print('Filtering of objects finished...')
@@ -250,6 +250,8 @@ def compute_features(obj_dict_list, img_cls_dict):
 
     
     no_imgs = len(obj_dict_list[0])
+    print no_imgs
+    print len(img_cls_dict)
     assert(len(img_cls_dict) == no_imgs ), 'Images in object dict != images in class dict'
 
     for d in range(1, no_dict):
@@ -279,14 +281,18 @@ def compute_features(obj_dict_list, img_cls_dict):
     feat_dict = {}
     for img_name, objs in filtered_objs.iteritems():
         feat_dict[img_name] = {'cls': objs['cls']}
+
     # compute boolean features
     feat_dict = create_boolean_features(filtered_objs, 'f0', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f1', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
     #feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
+
     #print filtered_objs
-    plot_catwise_centroids(filtered_objs, 'radio')
+    #plot_catwise_centroids(filtered_objs, 'steering')
+
+    return feat_dict
 
     
 

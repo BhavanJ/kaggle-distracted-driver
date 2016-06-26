@@ -2,9 +2,14 @@ import sys, os
 import argparse
 import csv
 import cPickle
+import numpy as np
+import sklearn
+from sklearn import tree
+from sklearn.externals.six import StringIO
+import pydot
 
 # local imports
-from feat_gen import compute_features
+from feat_gen import compute_features, CLASSES
 
 def construct_category_info(dict_or_csv):
     # if it is dictionary, name itself includes category info
@@ -27,6 +32,44 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+def feat_dict_to_ndarray(feat_dict):
+    no_samples = len(feat_dict)
+    feats = feat_dict[feat_dict.keys()[0]].keys()
+    feats.remove('cls')
+    ndim = len(feats)
+
+    print no_samples
+    print ndim
+    print feats
+    X = np.zeros(shape=(no_samples, ndim), dtype=np.float32)
+    y = np.zeros(shape=(no_samples), dtype=np.float32)
+    s = 0
+    for img, ft in feat_dict.iteritems():
+        X[s,:] = [ft[f] for f in feats]
+        y[s] = float(CLASSES.index(ft['cls']))
+        s += 1
+
+    return X, y
+
+def dt_classifier(X, y, gen_pic=False, feats=()):
+    clf = tree.DecisionTreeClassifier()
+    print('Training decision tree classifier...')
+    trained_clf = clf.fit(X, y)
+
+    pred = trained_clf.predict(X)
+    acc = sklearn.metrics.accuracy_score(y, pred)
+    print('Training Accuracy = {:f} %'.format(acc*100))
+    if(gen_pic):
+        assert(feats), 'Specify the feature names used for training'
+        dot_data = StringIO() 
+        tree.export_graphviz(trained_clf, out_file=dot_data,
+            feature_names=feats,  
+            class_names=CLASSES,  
+            filled=True, rounded=True,  
+            special_characters=True) 
+        print('Generating graph of the tree...')
+        graph = pydot.graph_from_dot_data(dot_data.getvalue()) 
+        graph.write_pdf("dd_classifier.pdf") 
 
 if __name__=='__main__':
     args = parse_args()
@@ -48,4 +91,9 @@ if __name__=='__main__':
             obj_dict_list.append(cPickle.load(pf)['boxes'])
 
     # compute features
-    compute_features(obj_dict_list, cls_info)
+    feat_dict = compute_features(obj_dict_list, cls_info)
+
+    # convert feature dictionary to numpy array.
+    X, y = feat_dict_to_ndarray(feat_dict)
+
+    dt_classifier(X, y, gen_pic=True, feats=('f0', 'f1', 'f2', 'f5'))
