@@ -1,16 +1,30 @@
 import numpy as np
+from utils import plot_mean_centroids, plot_catwise_centroids
+from collections import OrderedDict
+
 _OBJS = ('head', 'wrist', 'steering', 'radio', 'phone',
     'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone')
 
 _CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
 
-_FEATS = ('Presense of steering with both hands', 'Presense of steering with left hand',
-    'Presense of steering with right hand', 'Presense of right hand with phone',
-    'Presense of left hand with phone', 'Presense of phone' 'Left wrist present',
-    'Right wrist preset', 'Bottle/can present', 'Steering present', 'Head present'
-    'Distance btw left wrist and steering', 'Distance btw right wrist and steering',
-    'Distance btw left wrist and head', 'Distance btw right wrist and head',
-    'Centroid/Qudrant of left wrist(operating radio class)')
+_FEATS = OrderedDict({
+    'f0' : ('Presense of steering with both hands', 'both_hands_steering'),
+    'f1' : ('Presense of steering with left hand', 'left_hand_steering'),
+    'f2' : ('Presense of steering with right hand','right_hand_steering'),
+    'f3' : ('Presense of right hand with phone','right_hand_phone'),
+    'f4' : 'Presense of left hand with phone',
+    'f5' : ('Presense of phone', 'phone'),
+    'f6' : 'Left wrist present',
+    'f7' : 'Right wrist preset',
+    'f8' : 'Bottle/can present',
+    'f9' : 'Steering present',
+    'f10' : 'Distance btw head and steering centroid',
+    'f11' : 'Distance btw left wrist and steering',
+    'f12' : 'Distance btw right wrist and steering',
+    'f13' : 'Distance btw left wrist and head',
+    'f14' : 'Distance btw right wrist and head',
+    'f15' : 'Centroid/Qudrant of right wrist(operating radio class)',
+    'f16' : 'Distance btw head and steering centroid'})
 
 def _overlap_area(gt_rect, det_rect):
     """Computes overlap area percentage between ground truth box and detected box
@@ -73,8 +87,8 @@ def _get_mean_centroid(obj_dict, obj_type):
         cnt = 0
         for img, objs in obj_dict.iteritems():
             if(objs['cls'] == cat and len(objs[obj_type]) != 0):
-                mean_centroid[0] += (objs[obj_type][2] - objs[obj_type][0])/2.0
-                mean_centroid[1] += (objs[obj_type][3] - objs[obj_type][1])/2.0
+                mean_centroid[0] += ((objs[obj_type][2] - objs[obj_type][0])/2.0 + objs[obj_type][0])
+                mean_centroid[1] += ((objs[obj_type][3] - objs[obj_type][1])/2.0 + objs[obj_type][1])
                 cnt += 1
         return [mean_centroid[0]/cnt, mean_centroid[1]/cnt]
 
@@ -172,14 +186,21 @@ def _filter_detections(obj_dict):
 
     def __filter_phone(obj_dict):
         pf_dict = obj_dict
+        top_score = 0
         for img, objs in pf_dict.iteritems():
+            top_score = 0.0
+            #print objs['phone']
             if(len(objs['phone']) > 1):
                 scores = [h[4]  for h in objs['phone']]
                 pf_dict[img]['phone'] = objs['phone'][scores.index(max(scores))]
+                top_score = max(scores)
             elif(len(objs['phone']) == 1):
+                top_score = objs['phone'][0][4]
                 pf_dict[img]['phone'] = objs['phone'][0]
             else:
                 pass
+            if(top_score < 0.95):
+                pf_dict[img]['phone'] = []
 
         return pf_dict
 
@@ -198,8 +219,21 @@ def _filter_detections(obj_dict):
     print('Filtering multiple detections of phone...')
     filtered_dict =  __filter_phone(filtered_dict)
     print('Filtering of objects finished...')
+    # TODO: all wrists and phones whose centroids are behind should be removed
 
     return filtered_dict
+
+def create_boolean_features(obj_dict, feat, feat_dict):
+    obj_type = _FEATS[feat][1]
+    for img, objs in obj_dict.iteritems():
+        # if the list is not null
+        if(objs[obj_type]):
+            feat_dict[img][feat] = 1.0
+        else:
+            feat_dict[img][feat] = 0.0
+
+    return feat_dict
+
 
 def compute_features(obj_dict_list, img_cls_dict):
     """ Given the list of dictionaries, with each dictionary containing some objects detected for each train/val/test image,
@@ -236,10 +270,25 @@ def compute_features(obj_dict_list, img_cls_dict):
 
     # mean centroid of head for all categories
     head_mean_c = _get_mean_centroid(filtered_objs, 'head')
-    print(head_mean_c)
 
     # mean centroid of steering for all categories
     steering_mean_c = _get_mean_centroid(filtered_objs, 'steering')
-    print(steering_mean_c)
 
+    #plot_mean_centroids(head_mean_c, 'Centroid of head')
+    # initialize feature dictionary
+    feat_dict = {}
+    for img_name, objs in filtered_objs.iteritems():
+        feat_dict[img_name] = {'cls': objs['cls']}
+    # compute boolean features
+    feat_dict = create_boolean_features(filtered_objs, 'f0', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f1', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
+    #print filtered_objs
+    plot_catwise_centroids(filtered_objs, 'radio')
 
+    
+
+if __name__=='__main__':
+    print _FEATS['f0']
