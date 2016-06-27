@@ -101,4 +101,27 @@ def plot_catwise_centroids(obj_dict, obj_type):
             plt.scatter(*zip(*rect_cent[c]), marker='o', color=colors[c], label=classes[c])
     plt.legend(loc=2)
     plt.show()
-    
+
+
+def generate_result_sheet(result_dict, file_name='kaggle_dd_test_result.csv'):
+
+    with open(file_name, 'w') as rf:
+        rf.write('img,c0,c1,c2,c3,c4,c5,c6,c7,c8,c9\n')
+        for img, p in result_dict.iteritems():
+            rf.write('{:s},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f},{:f}\n'.format(img, 
+                p[0],p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9]))
+
+
+if __name__=='__main__':
+    import sys
+    test_list = sys.argv[1]
+    dummy_result = {}
+    with open(test_list, 'r') as tf:
+        for line in tf:
+            img_name = line.rstrip('\n')
+            prob = np.random.rand(10)
+            s = np.sum(prob)
+            prob = prob/s
+            dummy_result[img_name] = prob.tolist()
+
+    generate_result_sheet(dummy_result)

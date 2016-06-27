@@ -50,7 +50,24 @@ def feat_dict_to_ndarray(feat_dict):
         s += 1
 
     return X, y
-
+def generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y):
+    """ Compute the loss metrics as per kaggle formula
+    """
+    def __get_loss(prob, target):
+        # choose all prob corresponding to target label
+        idx_row = [i for i in range(len(target))]
+        idx_col = target.astype(np.int32).tolist()
+        p_i = prob[idx_row, idx_col]
+        # avoid log(0)
+        p_i = np.maximum(np.minimum(p_i, 1-1e-15), 1e-15)
+        loss = np.mean(np.log(p_i))
+        return -loss
+    train_loss = __get_loss(train_prob, train_y)
+    val_loss = __get_loss(val_prob, val_y)
+    print('Training loss = {:f}'.format(train_loss))
+    print('Validation loss = {:f}'.format(val_loss))
+        
+     
 def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
 
     assert(len(train_x) == len(train_y)), 'No of training amples != labels'
@@ -64,12 +81,16 @@ def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
     trained_clf = clf.fit(train_x, train_y)
 
     train_pred = trained_clf.predict(train_x)
+    train_pred_prob = trained_clf.predict_proba(train_x)
     acc = sklearn.metrics.accuracy_score(train_y, train_pred)
     print('Training Accuracy = {:f} %'.format(acc*100))
     val_pred = trained_clf.predict(val_x)
+    val_pred_prob = trained_clf.predict_proba(val_x)
     acc = sklearn.metrics.accuracy_score(val_y, val_pred)
     print('Validation Accuracy = {:f} %'.format(acc*100))
 
+    # compute training and validation loss
+    generate_kaggle_eval_metrics(train_pred_prob, train_y, val_pred_prob, val_y)
 
     if(gen_pic):
         assert(feats), 'Specify the feature names used for training'
