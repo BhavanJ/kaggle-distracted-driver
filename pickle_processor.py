@@ -51,14 +51,26 @@ def feat_dict_to_ndarray(feat_dict):
 
     return X, y
 
-def dt_classifier(X, y, gen_pic=False, feats=()):
+def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
+
+    assert(len(train_x) == len(train_y)), 'No of training amples != labels'
+    assert(len(val_x) == len(val_y)), 'No of validation amples != labels'
+
+    print('No of training samples = {:d}'.format(len(train_x)))
+    print('No of validation samples = {:d}'.format(len(val_x)))
+
     clf = tree.DecisionTreeClassifier()
     print('Training decision tree classifier...')
-    trained_clf = clf.fit(X, y)
+    trained_clf = clf.fit(train_x, train_y)
 
-    pred = trained_clf.predict(X)
-    acc = sklearn.metrics.accuracy_score(y, pred)
+    train_pred = trained_clf.predict(train_x)
+    acc = sklearn.metrics.accuracy_score(train_y, train_pred)
     print('Training Accuracy = {:f} %'.format(acc*100))
+    val_pred = trained_clf.predict(val_x)
+    acc = sklearn.metrics.accuracy_score(val_y, val_pred)
+    print('Validation Accuracy = {:f} %'.format(acc*100))
+
+
     if(gen_pic):
         assert(feats), 'Specify the feature names used for training'
         dot_data = StringIO() 
@@ -96,4 +108,16 @@ if __name__=='__main__':
     # convert feature dictionary to numpy array.
     X, y = feat_dict_to_ndarray(feat_dict)
 
-    dt_classifier(X, y, gen_pic=True, feats=('f0', 'f1', 'f2', 'f5'))
+    # Randomly reshuffle the data
+    rand_idx = np.random.permutation(len(X))
+    X = X[rand_idx]
+    y = y[rand_idx]
+    
+    train_percent = 0.8
+    no_train_samples = int(train_percent*len(X))
+    train_x = X[0:no_train_samples]
+    val_x = X[no_train_samples:]
+    train_y = y[0:no_train_samples]
+    val_y = y[no_train_samples:]
+
+    dt_classifier(train_x, train_y, val_x, val_y, gen_pic=True, feats=('f0', 'f1', 'f2', 'f5'))

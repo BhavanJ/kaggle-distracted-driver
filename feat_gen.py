@@ -250,8 +250,6 @@ def compute_features(obj_dict_list, img_cls_dict):
 
     
     no_imgs = len(obj_dict_list[0])
-    print no_imgs
-    print len(img_cls_dict)
     assert(len(img_cls_dict) == no_imgs ), 'Images in object dict != images in class dict'
 
     for d in range(1, no_dict):
@@ -291,8 +289,8 @@ def compute_features(obj_dict_list, img_cls_dict):
 
     #print filtered_objs
     #plot_catwise_centroids(filtered_objs, 'head')
-    plot_catwise_centroids(filtered_objs, 'steering')
-    plot_catwise_centroids(filtered_objs, 'phone')
+    #plot_catwise_centroids(filtered_objs, 'steering')
+    #plot_catwise_centroids(filtered_objs, 'phone')
     #plot_catwise_centroids(filtered_objs, 'left_hand_steering')
     #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
 
