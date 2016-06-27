@@ -290,7 +290,11 @@ def compute_features(obj_dict_list, img_cls_dict):
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
 
     #print filtered_objs
-    #plot_catwise_centroids(filtered_objs, 'steering')
+    #plot_catwise_centroids(filtered_objs, 'head')
+    plot_catwise_centroids(filtered_objs, 'steering')
+    plot_catwise_centroids(filtered_objs, 'phone')
+    #plot_catwise_centroids(filtered_objs, 'left_hand_steering')
+    #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
 
     return feat_dict
 
