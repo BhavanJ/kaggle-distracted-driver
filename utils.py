@@ -106,3 +106,4 @@ def plot_catwise_centroids(obj_dict, obj_type):
 
 
 if __name__=='__main__':
+    print('Nothing to execute')

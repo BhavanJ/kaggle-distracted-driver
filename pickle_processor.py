@@ -155,11 +155,13 @@ if __name__=='__main__':
     print('Reading the bounding box file for testset')
     test_obj_dlist = []
     dummy_cls_info = {}
+    test_obj_dict = {}
     if(args.test_pkl_files != None):
         for pkl_file in args.test_pkl_files:
             with open(pkl_file, 'r') as pf:
-                test_obj_dlist.append(cPickle.load(pf)['boxes'])
+                test_obj_dict.update(cPickle.load(pf)['boxes'])
 
+    test_obj_dlist.append(test_obj_dict)
     # create dummy class info requried by compute features method
     print('Creating dummy class list...')
     for d in test_obj_dlist:

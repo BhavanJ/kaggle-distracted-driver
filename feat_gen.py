@@ -291,7 +291,7 @@ def compute_features(obj_dict_list, img_cls_dict, train=True):
     feat_dict = create_boolean_features(filtered_objs, 'f0', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f1', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
-    #feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
 
     #print filtered_objs
