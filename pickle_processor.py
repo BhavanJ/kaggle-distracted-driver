@@ -27,29 +27,30 @@ def construct_category_info(dict_or_csv):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Takes detection files to generate features.')
-    parser.add_argument('--files', dest='pkl_files', nargs='+', help='Path to dataset directory')
+    parser.add_argument('--train', dest='train_pkl_files', nargs='+', help='Training object pickle files')
     parser.add_argument('--csv', dest='csv', default=None, help='Class info csv file')
+    parser.add_argument('--test', dest='test_pkl_files', nargs='+', help='Training object pickle files')
     args = parser.parse_args()
     return args
 
-def feat_dict_to_ndarray(feat_dict):
+def feat_dict_to_ndarray(feat_dict, feats, train=True):
     no_samples = len(feat_dict)
-    feats = feat_dict[feat_dict.keys()[0]].keys()
-    feats.remove('cls')
     ndim = len(feats)
 
-    print no_samples
-    print ndim
-    print feats
     X = np.zeros(shape=(no_samples, ndim), dtype=np.float32)
-    y = np.zeros(shape=(no_samples), dtype=np.float32)
+    if train:
+        y = np.zeros(shape=(no_samples), dtype=np.float32)
     s = 0
     for img, ft in feat_dict.iteritems():
         X[s,:] = [ft[f] for f in feats]
-        y[s] = float(CLASSES.index(ft['cls']))
+        if train:
+            y[s] = float(CLASSES.index(ft['cls']))
         s += 1
+    if train:
+        return X, y
+    else:
+        return X
 
-    return X, y
 def generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y):
     """ Compute the loss metrics as per kaggle formula
     """
@@ -104,12 +105,13 @@ def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
         graph = pydot.graph_from_dot_data(dot_data.getvalue()) 
         graph.write_pdf("dd_classifier.pdf") 
 
+    return trained_clf
 if __name__=='__main__':
     args = parse_args()
 
     if(args.csv == None):
         print('Gathering class information from the first object pickle file')
-        bbox_file = args.pkl_files[0]
+        bbox_file = args.train_pkl_files[0]
         with open(bbox_file, 'r') as box_file:
             box_list = cPickle.load(box_file)['boxes']
         cls_info = construct_category_info(box_list)
@@ -119,15 +121,20 @@ if __name__=='__main__':
 
     print('Reading all object pickle files to create a list of object dictionaries')
     obj_dict_list = []
-    for pkl_file in args.pkl_files:
+    for pkl_file in args.train_pkl_files:
         with open(pkl_file, 'r') as pf:
             obj_dict_list.append(cPickle.load(pf)['boxes'])
 
     # compute features
     feat_dict = compute_features(obj_dict_list, cls_info)
 
+    # order of features needs to be fixed
+    train_feats = feat_dict[feat_dict.keys()[0]].keys()
+    train_feats.remove('cls')
+    print train_feats
+
     # convert feature dictionary to numpy array.
-    X, y = feat_dict_to_ndarray(feat_dict)
+    X, y = feat_dict_to_ndarray(feat_dict, train_feats)
 
     # Randomly reshuffle the data
     rand_idx = np.random.permutation(len(X))
@@ -141,4 +148,39 @@ if __name__=='__main__':
     train_y = y[0:no_train_samples]
     val_y = y[no_train_samples:]
 
-    dt_classifier(train_x, train_y, val_x, val_y, gen_pic=True, feats=('f0', 'f1', 'f2', 'f5'))
+    clf = dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=train_feats)
+
+    # Testing.
+    print('Training and validation done\nStarting testing...')
+    print('Reading the bounding box file for testset')
+    test_obj_dlist = []
+    dummy_cls_info = {}
+    if(args.test_pkl_files != None):
+        for pkl_file in args.test_pkl_files:
+            with open(pkl_file, 'r') as pf:
+                test_obj_dlist.append(cPickle.load(pf)['boxes'])
+
+    # create dummy class info requried by compute features method
+    print('Creating dummy class list...')
+    for d in test_obj_dlist:
+        for img in d:
+            dummy_cls_info[img] = 'u' # unknown
+
+    # compute features for test images
+    print('Computing featues on test set...')
+    test_feat_dict = compute_features(test_obj_dlist, dummy_cls_info, train=False)
+
+    # compute probabilities of all classes for all images
+    print('Making predictions...')
+    no_samples = len(test_feat_dict)
+    test_predictions = {}
+    for img, ft in test_feat_dict.iteritems():
+        fvec = [ft[f] for f in train_feats]
+        x = np.array(fvec, dtype=np.float32)
+        x = x.reshape(1, -1)
+        prob = clf.predict_proba(x)
+        test_predictions[img] = prob[0].tolist()
+
+    with open('test_predictions.pkl', 'w') as pf:
+        cPickle.dump(test_predictions, pf)
+        print('Stored test predictions in {:s}'.format('test_predictions.pkl'))

@@ -235,7 +235,7 @@ def create_boolean_features(obj_dict, feat, feat_dict):
     return feat_dict
 
 
-def compute_features(obj_dict_list, img_cls_dict):
+def compute_features(obj_dict_list, img_cls_dict, train=True):
     """ Given the list of dictionaries, with each dictionary containing some objects detected for each train/val/test image,
     this method computes the features required for the decision tree by combinining all object detections and interpretations.
 
@@ -268,11 +268,18 @@ def compute_features(obj_dict_list, img_cls_dict):
     print(obj_names)
     filtered_objs = _filter_detections(combined_objs)
 
-    # mean centroid of head for all categories
-    head_mean_c = _get_mean_centroid(filtered_objs, 'head')
+    # compute mean centroid of must present objects and substitute
+    # the category mean for missing mandatory objects
+    if(train):
+        # mean centroid of head for all categories
+        head_mean_c = _get_mean_centroid(filtered_objs, 'head')
 
-    # mean centroid of steering for all categories
-    steering_mean_c = _get_mean_centroid(filtered_objs, 'steering')
+        # mean centroid of steering for all categories
+        steering_mean_c = _get_mean_centroid(filtered_objs, 'steering')
+    else:
+        # If the feature computation is on test set, replace
+        # the missing items by the centroid computed on training set.
+        pass
 
     #plot_mean_centroids(head_mean_c, 'Centroid of head')
     # initialize feature dictionary
