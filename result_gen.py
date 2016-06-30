@@ -23,6 +23,14 @@ def parse_args():
 
     return args
 
+def prob_boost(prob):
+    max_idx = prob.index(max(prob))
+    x = prob[max_idx]
+    prob[max_idx] = 1.0
+    s = 2.0 - x
+    boosted = [p/s for p in prob]
+    return boosted
+
 if __name__=='__main__':
     args = parse_args()
     with open(args.pred_file, 'r') as pf:
@@ -41,6 +49,10 @@ if __name__=='__main__':
                 rand_prob_cnt += 1
             else:
                 prob = pred_dict[img_name]
+                # hack to boost the most probable class close to 1
+                # This did not help to improve the score.. hence discarding for time being :(
+                # Failed to improve the score twice :( :(. No more tricks !
+                #prob = prob_boost(prob)
 
             s = np.sum(prob)
             prob = prob/s
