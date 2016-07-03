@@ -79,30 +79,55 @@ def _get_object_list(obj_dict):
     return obj_list
 
 def _get_mean_centroid(obj_dict, obj_type):
-    """ returns mean centroid of head for all 10 classes. Also returns the dictionary containing centroid of head for all
+    """ returns mean centroid of given object type for all 10 classes. Also returns the dictionary containing centroid of head for all
     images, replacing the missing values by the mean
     """
     def __get_cat_mean(obj_dict, obj_type, cat):
         mean_centroid = [0., 0.]
+        mean_box = [0.0 for i in range(5)]
         cnt = 0
         for img, objs in obj_dict.iteritems():
-            if(objs['cls'] == cat and len(objs[obj_type]) != 0):
-                mean_centroid[0] += ((objs[obj_type][2] - objs[obj_type][0])/2.0 + objs[obj_type][0])
-                mean_centroid[1] += ((objs[obj_type][3] - objs[obj_type][1])/2.0 + objs[obj_type][1])
-                cnt += 1
-        return [mean_centroid[0]/cnt, mean_centroid[1]/cnt]
+            if(objs['cls'] == cat ):
+                if(len(objs[obj_type]) == 1):
+                    mean_centroid[0] += ((objs[obj_type][2] - objs[obj_type][0])/2.0 + objs[obj_type][0])
+                    mean_centroid[1] += ((objs[obj_type][3] - objs[obj_type][1])/2.0 + objs[obj_type][1])
+                    mean_box = [mean_box[i]+objs[obj_type][i] for i in range(5)]
+                    cnt += 1
+                elif(len(objs[obj_type]) > 1):
+                    # take the box with max score
+                    scores = [o[4] for o in objs[obj_type]]
+                    top_box = objs[obj_type][scores.index(max(scores))]
+                    mean_centroid[0] += ((top_box[2] - top_box[0])/2.0 + top_box[0])
+                    mean_centroid[1] += ((top_box[3] - top_box[1])/2.0 + top_box[1])
+                    mean_box = [mean_box[i]+objs[obj_type][i] for i in range(5)]
+                    cnt += 1
+                else:
+                    pass
+        mean_box = [mean_box[i]/cnt for i in range(5)]
+        return [mean_centroid[0]/cnt, mean_centroid[1]/cnt], mean_box
 
     mean_cent = []
+    mean_box = []
     for cls in CLASSES:
-        mean_cent.append(__get_cat_mean(obj_dict, obj_type, cls))
+        mean_c, mean_b = __get_cat_mean(obj_dict, obj_type, cls)
+        mean_cent.append(mean_c)
+        mean_box.append(mean_b)
 
-    return mean_cent
+    return mean_cent, mean_box
 
-def _get_mean_steering_centroid(obj_dict):
-    """ returns mean value of centroid of steering for all 10 classes. Also returns the dictionary containing centroid of steering for all
-    images, replacing the missing values by the mean
-    """
-def _filter_detections(obj_dict):
+def  _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box):
+    recovered_obj = combined_objs
+    # recover head and steering
+    for img, objs in recovered_obj.iteritems():
+        cls_idx = CLASSES.index(objs['cls'])
+        if(len(objs['head']) == 0):
+            recovered_obj[img]['head'] = head_mean_box[cls_idx]
+        if(len(objs['steering']) == 0):
+            recovered_obj[img]['steering'] = steering_mean_box[cls_idx]
+
+    return recovered_obj
+
+def _filter_detections(obj_dict, head_mean, steering_mean):
 
     filtered_dict = obj_dict
     def __filter_head(obj_dict):
@@ -266,20 +291,28 @@ def compute_features(obj_dict_list, img_cls_dict, train=True):
     obj_names = _get_object_list(combined_objs)
     print('Objects found in the pickle files are'),
     print(obj_names)
-    filtered_objs = _filter_detections(combined_objs)
 
     # compute mean centroid of must present objects and substitute
     # the category mean for missing mandatory objects
     if(train):
         # mean centroid of head for all categories
-        head_mean_c = _get_mean_centroid(filtered_objs, 'head')
+        head_mean_c, head_mean_box = _get_mean_centroid(filtered_objs, 'head')
 
         # mean centroid of steering for all categories
-        steering_mean_c = _get_mean_centroid(filtered_objs, 'steering')
+        steering_mean_c, steering_mean_box = _get_mean_centroid(filtered_objs, 'steering')
+
+        # recover mandatory objects(head and steering) using the mean centroid
+        combined_objs = _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box)
+        
+        # object filtering
+        filtered_objs = _filter_detections(combined_objs)
     else:
         # If the feature computation is on test set, replace
         # the missing items by the centroid computed on training set.
+        # object filtering
+        filtered_objs = _filter_detections(combined_objs, head_mean, steering_mean)
         pass
+
 
     #plot_mean_centroids(head_mean_c, 'Centroid of head')
     # initialize feature dictionary
