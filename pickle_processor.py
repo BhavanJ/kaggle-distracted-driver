@@ -151,6 +151,7 @@ if __name__=='__main__':
     clf = dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=train_feats)
 
     # Testing.
+    """
     print('Training and validation done\nStarting testing...')
     print('Reading the bounding box file for testset')
     test_obj_dlist = []
@@ -186,3 +187,4 @@ if __name__=='__main__':
     with open('test_predictions.pkl', 'w') as pf:
         cPickle.dump(test_predictions, pf)
         print('Stored test predictions in {:s}'.format('test_predictions.pkl'))
+    """

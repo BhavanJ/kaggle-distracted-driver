@@ -89,9 +89,9 @@ def _get_mean_centroid(obj_dict, obj_type):
         for img, objs in obj_dict.iteritems():
             if(objs['cls'] == cat ):
                 if(len(objs[obj_type]) == 1):
-                    mean_centroid[0] += ((objs[obj_type][2] - objs[obj_type][0])/2.0 + objs[obj_type][0])
-                    mean_centroid[1] += ((objs[obj_type][3] - objs[obj_type][1])/2.0 + objs[obj_type][1])
-                    mean_box = [mean_box[i]+objs[obj_type][i] for i in range(5)]
+                    mean_centroid[0] += ((objs[obj_type][0][2] - objs[obj_type][0][0])/2.0 + objs[obj_type][0][0])
+                    mean_centroid[1] += ((objs[obj_type][0][3] - objs[obj_type][0][1])/2.0 + objs[obj_type][0][1])
+                    mean_box = [mean_box[i]+objs[obj_type][0][i] for i in range(5)]
                     cnt += 1
                 elif(len(objs[obj_type]) > 1):
                     # take the box with max score
@@ -99,7 +99,7 @@ def _get_mean_centroid(obj_dict, obj_type):
                     top_box = objs[obj_type][scores.index(max(scores))]
                     mean_centroid[0] += ((top_box[2] - top_box[0])/2.0 + top_box[0])
                     mean_centroid[1] += ((top_box[3] - top_box[1])/2.0 + top_box[1])
-                    mean_box = [mean_box[i]+objs[obj_type][i] for i in range(5)]
+                    mean_box = [mean_box[i]+top_box[i] for i in range(5)]
                     cnt += 1
                 else:
                     pass
@@ -121,9 +121,9 @@ def  _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box):
     for img, objs in recovered_obj.iteritems():
         cls_idx = CLASSES.index(objs['cls'])
         if(len(objs['head']) == 0):
-            recovered_obj[img]['head'] = head_mean_box[cls_idx]
+            recovered_obj[img]['head'] = [head_mean_box[cls_idx]]
         if(len(objs['steering']) == 0):
-            recovered_obj[img]['steering'] = steering_mean_box[cls_idx]
+            recovered_obj[img]['steering'] = [steering_mean_box[cls_idx]]
 
     return recovered_obj
 
@@ -209,23 +209,32 @@ def _filter_detections(obj_dict, head_mean, steering_mean):
         # TODO
         return pf_dict
 
-    def __filter_phone(obj_dict):
+    def __filter_phone(obj_dict, head_c):
         pf_dict = obj_dict
         top_score = 0
         for img, objs in pf_dict.iteritems():
             top_score = 0.0
+            pc_x = -1.0
+            hc_x = head_c[CLASSES.index(objs['cls'])][0]
             #print objs['phone']
             if(len(objs['phone']) > 1):
                 scores = [h[4]  for h in objs['phone']]
                 pf_dict[img]['phone'] = objs['phone'][scores.index(max(scores))]
                 top_score = max(scores)
+                # x co-ordinate of the box centroid
+                pc_x = (pf_dict[img]['phone'][2] - pf_dict[img]['phone'][0])/2.0 + pf_dict[img]['phone'][0]
             elif(len(objs['phone']) == 1):
                 top_score = objs['phone'][0][4]
                 pf_dict[img]['phone'] = objs['phone'][0]
+                pc_x = (pf_dict[img]['phone'][2] - pf_dict[img]['phone'][0])/2.0 + pf_dict[img]['phone'][0]
             else:
                 pass
-            if(top_score < 0.95):
+            # threshold for phone detection
+            # discard all phone detections which are behind the head
+            if(top_score < 0.95 or pc_x < hc_x):
                 pf_dict[img]['phone'] = []
+                
+            
 
         return pf_dict
 
@@ -242,7 +251,7 @@ def _filter_detections(obj_dict, head_mean, steering_mean):
     print('Filtering multiple detections of phone with hands...')
     #filtered_dict =  __filter_phone_with_hands(filtered_dict)
     print('Filtering multiple detections of phone...')
-    filtered_dict =  __filter_phone(filtered_dict)
+    filtered_dict =  __filter_phone(filtered_dict, head_mean)
     print('Filtering of objects finished...')
     # TODO: all wrists and phones whose centroids are behind should be removed
 
@@ -296,16 +305,16 @@ def compute_features(obj_dict_list, img_cls_dict, train=True):
     # the category mean for missing mandatory objects
     if(train):
         # mean centroid of head for all categories
-        head_mean_c, head_mean_box = _get_mean_centroid(filtered_objs, 'head')
+        head_mean_c, head_mean_box = _get_mean_centroid(combined_objs, 'head')
 
         # mean centroid of steering for all categories
-        steering_mean_c, steering_mean_box = _get_mean_centroid(filtered_objs, 'steering')
+        steering_mean_c, steering_mean_box = _get_mean_centroid(combined_objs, 'steering')
 
         # recover mandatory objects(head and steering) using the mean centroid
         combined_objs = _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box)
         
         # object filtering
-        filtered_objs = _filter_detections(combined_objs)
+        filtered_objs = _filter_detections(combined_objs, head_mean_c, steering_mean_c)
     else:
         # If the feature computation is on test set, replace
         # the missing items by the centroid computed on training set.
