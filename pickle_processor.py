@@ -126,7 +126,7 @@ if __name__=='__main__':
             obj_dict_list.append(cPickle.load(pf)['boxes'])
 
     # compute features
-    feat_dict = compute_features(obj_dict_list, cls_info)
+    feat_dict, mean_model = compute_features(obj_dict_list, cls_info)
 
     # order of features needs to be fixed
     train_feats = feat_dict[feat_dict.keys()[0]].keys()
@@ -151,7 +151,7 @@ if __name__=='__main__':
     clf = dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=train_feats)
 
     # Testing.
-    """
+    
     print('Training and validation done\nStarting testing...')
     print('Reading the bounding box file for testset')
     test_obj_dlist = []
@@ -171,7 +171,12 @@ if __name__=='__main__':
 
     # compute features for test images
     print('Computing featues on test set...')
-    test_feat_dict = compute_features(test_obj_dlist, dummy_cls_info, train=False)
+    print len(mean_model)
+    test_feat_dict = compute_features(test_obj_dlist, dummy_cls_info, train=False,
+        head_mean_c=mean_model[0],
+        steering_mean_c=mean_model[1],
+        head_mean_box=mean_model[2],
+        steering_mean_box=mean_model[3])
 
     # compute probabilities of all classes for all images
     print('Making predictions...')
@@ -187,4 +192,4 @@ if __name__=='__main__':
     with open('test_predictions.pkl', 'w') as pf:
         cPickle.dump(test_predictions, pf)
         print('Stored test predictions in {:s}'.format('test_predictions.pkl'))
-    """
+    

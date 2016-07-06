@@ -115,11 +115,17 @@ def _get_mean_centroid(obj_dict, obj_type):
 
     return mean_cent, mean_box
 
-def  _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box):
+def  _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box, train=True):
     recovered_obj = combined_objs
     # recover head and steering
     for img, objs in recovered_obj.iteritems():
-        cls_idx = CLASSES.index(objs['cls'])
+        if(train):
+            cls_idx = CLASSES.index(objs['cls'])
+        else:
+            # test samples do not have any class info. Hence we use mean of c0 category.
+            # TODO: instead of c0 category, replace by mean across all categories.
+            cls_idx = 0
+
         if(len(objs['head']) == 0):
             recovered_obj[img]['head'] = [head_mean_box[cls_idx]]
         if(len(objs['steering']) == 0):
@@ -127,7 +133,7 @@ def  _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box):
 
     return recovered_obj
 
-def _filter_detections(obj_dict, head_mean, steering_mean):
+def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
 
     filtered_dict = obj_dict
     def __filter_head(obj_dict):
@@ -209,13 +215,18 @@ def _filter_detections(obj_dict, head_mean, steering_mean):
         # TODO
         return pf_dict
 
-    def __filter_phone(obj_dict, head_c):
+    def __filter_phone(obj_dict, head_c, train=True):
         pf_dict = obj_dict
         top_score = 0
         for img, objs in pf_dict.iteritems():
             top_score = 0.0
             pc_x = -1.0
-            hc_x = head_c[CLASSES.index(objs['cls'])][0]
+            if(train):
+                hc_x = head_c[CLASSES.index(objs['cls'])][0]
+            else:
+                # test samples do not have any class info. Hence we use mean of c0 category.
+                # TODO: instead of c0 category, replace by mean across all categories.
+                hc_x = head_c[0][0]
             #print objs['phone']
             if(len(objs['phone']) > 1):
                 scores = [h[4]  for h in objs['phone']]
@@ -251,7 +262,7 @@ def _filter_detections(obj_dict, head_mean, steering_mean):
     print('Filtering multiple detections of phone with hands...')
     #filtered_dict =  __filter_phone_with_hands(filtered_dict)
     print('Filtering multiple detections of phone...')
-    filtered_dict =  __filter_phone(filtered_dict, head_mean)
+    filtered_dict =  __filter_phone(filtered_dict, head_mean, train)
     print('Filtering of objects finished...')
     # TODO: all wrists and phones whose centroids are behind should be removed
 
@@ -269,7 +280,7 @@ def create_boolean_features(obj_dict, feat, feat_dict):
     return feat_dict
 
 
-def compute_features(obj_dict_list, img_cls_dict, train=True):
+def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     """ Given the list of dictionaries, with each dictionary containing some objects detected for each train/val/test image,
     this method computes the features required for the decision tree by combinining all object detections and interpretations.
 
@@ -319,8 +330,14 @@ def compute_features(obj_dict_list, img_cls_dict, train=True):
         # If the feature computation is on test set, replace
         # the missing items by the centroid computed on training set.
         # object filtering
-        filtered_objs = _filter_detections(combined_objs, head_mean, steering_mean)
-        pass
+        head_mean_c = kwargs['head_mean_c']
+        steering_mean_c = kwargs['steering_mean_c']
+        head_mean_box = kwargs['head_mean_box']
+        steering_mean_box = kwargs['steering_mean_box']
+        # recover mandatory objects(head and steering) using the mean centroid
+        combined_objs = _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box, train=False)
+        filtered_objs = _filter_detections(combined_objs, head_mean_c, steering_mean_c, train=False)
+        
 
 
     #plot_mean_centroids(head_mean_c, 'Centroid of head')
@@ -342,8 +359,11 @@ def compute_features(obj_dict_list, img_cls_dict, train=True):
     #plot_catwise_centroids(filtered_objs, 'phone')
     #plot_catwise_centroids(filtered_objs, 'left_hand_steering')
     #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
-
-    return feat_dict
+    if(train):
+        mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
+        return feat_dict, mean_model
+    else:
+        return feat_dict
 
     
 
