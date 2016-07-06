@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import math
 
 def box_nms(rects, overlap_thr):
 
@@ -66,7 +67,7 @@ def plot_mean_centroids(cent_list, obj_info):
     ax.yaxis.tick_left()
     plt.show()
 
-def plot_catwise_centroids(obj_dict, obj_type):
+def plot_catwise_centroids(obj_dict, obj_type, cat_range=(0,10)):
     classes = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
     rect_list = [[] for i in range(10)]
     rect_cent = [[] for i in range(10)]
@@ -96,14 +97,55 @@ def plot_catwise_centroids(obj_dict, obj_type):
     ax.set_ylim(ax.get_ylim()[::-1])
     ax.xaxis.tick_top()
     ax.yaxis.tick_left()
-    for c in range(10):
+    for c in range(*cat_range):
         if (len(rect_cent[c])):
             plt.scatter(*zip(*rect_cent[c]), marker='o', color=colors[c], label=classes[c])
     plt.legend(loc=2)
     plt.show()
 
 
+def plot_objpair_dist_histogram(obj_dict, obj0, obj1, sep=True, cat_range=(0,10)):
+    classes = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
+    dist_dict = {}
+    for c in classes:
+        dist_dict[c] = []
 
+    for img, objs in obj_dict.iteritems():
+        if(len(objs[obj0]) == 0 or len(objs[obj1]) == 0):
+            continue
+        # if more than one object of the type is present, take the first one
+        if(isinstance(objs[obj0][0], list)):
+            obj0_box = objs[obj0][0][:4]
+        else:
+            obj0_box = objs[obj0][:4]
+        if(isinstance(objs[obj1][0], list)):
+            obj1_box = objs[obj1][0][:4]
+        else:
+            obj1_box = objs[obj1][:4]
 
+        # compute head and steering centroid.
+        obj0_c = ((obj0_box[2] - obj0_box[0])/2.0 + obj0_box[0], (obj0_box[3] - obj0_box[1])/2.0 + obj0_box[1])
+        obj1_c = ((obj1_box[2] - obj1_box[0])/2.0 + obj1_box[0], (obj1_box[3] - obj1_box[1])/2.0 + obj1_box[1])
+        # find the distance
+        dist = math.sqrt((obj1_c[0]-obj0_c[0])**2 + (obj1_c[1]-obj0_c[1])**2)
+        dist_dict[objs['cls']].append(dist)
+
+    colors = ('#080808', '#DAF7A6', '#EAF505', '#05F510', '#05F1F5', '#0D05F5', '#F505EA', '#633974', '#95A5A6', '#F50526')
+    if(not sep):
+        for c in range(*cat_range):
+            plt.hist(dist_dict[classes[c]], 100, color=colors[c], label=classes[c])
+        plt.legend(loc=2)
+        plt.grid(True)
+    else:
+        fig, ax = plt.subplots(2, 5, sharex=True, sharey=True)
+        for c in range(*cat_range):
+            ax[c/5][c%5].hist(dist_dict[classes[c]], 50, color=colors[c], label=classes[c])
+            ax[c/5][c%5].set_title(classes[c])
+            ax[c/5][c%5].grid(True)
+        
+    plt.xlabel('Distance btw {:s} and {:s}'.format(obj0, obj1))
+    plt.ylabel('Frequency of occurance')
+    plt.show()
+        
 if __name__=='__main__':
     print('Nothing to execute')

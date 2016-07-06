@@ -1,6 +1,7 @@
 import numpy as np
-from utils import plot_mean_centroids, plot_catwise_centroids
+from kaggle_utils import plot_mean_centroids, plot_catwise_centroids, plot_objpair_dist_histogram
 from collections import OrderedDict
+import math
 
 _OBJS = ('head', 'wrist', 'steering', 'radio', 'phone',
     'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone')
@@ -24,7 +25,8 @@ _FEATS = OrderedDict({
     'f13' : 'Distance btw left wrist and head',
     'f14' : 'Distance btw right wrist and head',
     'f15' : 'Centroid/Qudrant of right wrist(operating radio class)',
-    'f16' : 'Distance btw head and steering centroid'})
+    'f16' : 'Distance btw head and steering centroid',
+    'f17' : 'Wrist present inside head object?'})
 
 def _overlap_area(gt_rect, det_rect):
     """Computes overlap area percentage between ground truth box and detected box
@@ -162,7 +164,7 @@ def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
             else:
                 pass
 
-        return hf_dict
+        return wf_dict
 
     def __filter_steering(obj_dict):
         sf_dict = obj_dict
@@ -258,11 +260,13 @@ def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
     print('Filtering steering...')
     filtered_dict = __filter_steering(filtered_dict)
     print('Filtering hands on steering objects...')
-    #filtered_dict = __filter_hands_steering(filtered_dict)
+    filtered_dict = __filter_hands_steering(filtered_dict)
     print('Filtering multiple detections of phone with hands...')
     #filtered_dict =  __filter_phone_with_hands(filtered_dict)
     print('Filtering multiple detections of phone...')
     filtered_dict =  __filter_phone(filtered_dict, head_mean, train)
+    print('Filtering wrists...')
+    filtered_dict = __filter_wrists(filtered_dict)
     print('Filtering of objects finished...')
     # TODO: all wrists and phones whose centroids are behind should be removed
 
@@ -279,6 +283,39 @@ def create_boolean_features(obj_dict, feat, feat_dict):
 
     return feat_dict
 
+def distance_btw_head_steering(obj_dict, feat, feat_dict):
+    dist_list = []
+    for img, objs in obj_dict.iteritems():
+        # compute head and steering centroid.
+        head_c = ((objs['head'][2] - objs['head'][0])/2.0 + objs['head'][0], 
+            (objs['head'][3] - objs['head'][1])/2.0 + objs['head'][1])
+        steer_c = ((objs['steering'][2] - objs['steering'][0])/2.0 + objs['steering'][0], 
+            (objs['steering'][3] - objs['steering'][1])/2.0 + objs['steering'][1])
+        # find the distance
+        dist = math.sqrt((steer_c[0]-head_c[0])**2 + (steer_c[1]-head_c[1])**2)
+        feat_dict[img][feat] = dist
+        dist_list.append(dist)
+
+    # normalize the feature
+    max_dist = max(dist_list)
+    min_dist = min(dist_list)
+    for img, feats in feat_dict.items():
+        feat_dict[img][feat] = (feat_dict[img][feat]-min_dist) / max_dist
+    return feat_dict
+
+def head_wrist_vicinity(obj_dict, feat, feat_dict):
+    for img, objs in obj_dict.iteritems():
+        feat_val = 0.0
+        if(len(objs['wrist']) != 0):
+            head = objs['head']
+            for wrist in objs['wrist']:
+                overlap = _overlap_area(head[:4], wrist[:4])
+                if(overlap > 0.9):
+                    feat_val = 1.0
+
+        feat_dict[img][feat] = feat_val
+
+    return feat_dict
 
 def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     """ Given the list of dictionaries, with each dictionary containing some objects detected for each train/val/test image,
@@ -352,6 +389,9 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
+    # distance btw head and steering
+    #feat_dict = distance_btw_head_steering(filtered_objs, 'f10', feat_dict)
+    feat_dict = head_wrist_vicinity(filtered_objs, 'f17', feat_dict)
 
     #print filtered_objs
     #plot_catwise_centroids(filtered_objs, 'head')
@@ -359,6 +399,8 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     #plot_catwise_centroids(filtered_objs, 'phone')
     #plot_catwise_centroids(filtered_objs, 'left_hand_steering')
     #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
+    #plot_catwise_centroids(filtered_objs, 'wrist', cat_range=(8,9))
+    plot_objpair_dist_histogram(filtered_objs, 'head', 'wrist', cat_range=(0,5))
     if(train):
         mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
         return feat_dict, mean_model
