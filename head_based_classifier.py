@@ -52,20 +52,24 @@ def get_class_prob(objs):
             found = True
 
     if(found):
-        pred_cat_idx = cat_score.index(max(cat_score))
-        residue = 1.0 - max(cat_score)
+        #pred_cat_idx = cat_score.index(max(cat_score))
+        #residue = 1.0 - max(cat_score)
+        #residue = max(0.05, residue)
+        #other_prob = np.random.rand(9)
+        #other_prob = other_prob/other_prob.sum()
+        #other_prob = other_prob * residue
 
-        other_prob = np.random.rand(9)
-        other_prob = other_prob/other_prob.sum()
-        other_prob = other_prob * residue
-
-        other = 0
-        prob = [0.0]*10
-        prob[pred_cat_idx] = max(cat_score)
+        #other = 0
+        #prob = [0.0]*10
+        #prob[pred_cat_idx] = max(cat_score)
+        #for c in range(10):
+        #    if(c != pred_cat_idx):
+        #        prob[c] = other_prob[other]
+        #        other += 1
+        prob = cat_score[:]
         for c in range(10):
-            if(c != pred_cat_idx):
-                prob[c] = other_prob[other]
-                other += 1
+            if (prob[c] == 0.0):
+                prob[c] = 0.1
     else:
         prob = [0.1]*10
     return prob
@@ -133,7 +137,7 @@ def compute_accuracy(det_file, csv_label_file):
     print('Overall error  = {:f}%'.format(float(total_err_cnt)/len(cls_info)))
     print('Total random guesses = {:d}'.format(rand_guess_cnt))
     print('Overall loss = {:f}'.format(loss))
-    show_confusion_matrix(report)
+    #show_confusion_matrix(report)
 
 def generate_test_predictions(pkl_files):
 
