@@ -8,5 +8,5 @@ echo $test_bbox_files
 python head_based_classifier.py --train ../test/rcnn/output/kaggle_full_trainset_bbox_objset_head.pkl \
 	--csv ../driver_imgs_list.csv \
 	--test $test_bbox_files
-echo "Generating submission file..."
-python -u  result_gen.py --pred head_based_test_predictions.pkl --list ../test_set.txt
+#echo "Generating submission file..."
+#python -u  result_gen.py --pred head_based_test_predictions.pkl --list ../test_set.txt

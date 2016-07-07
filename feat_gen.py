@@ -3,8 +3,8 @@ from kaggle_utils import plot_mean_centroids, plot_catwise_centroids, plot_objpa
 from collections import OrderedDict
 import math
 
-_OBJS = ('head', 'wrist', 'steering', 'radio', 'phone',
-    'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone')
+_OBJS = ('head', 'wrist', 'steering', 'radio', 'phone','cup',
+    'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone', 'left_hand_phone', 'drinking_near_steering')
 
 CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
 
@@ -13,7 +13,7 @@ _FEATS = OrderedDict({
     'f1' : ('Presense of steering with left hand', 'left_hand_steering'),
     'f2' : ('Presense of steering with right hand','right_hand_steering'),
     'f3' : ('Presense of right hand with phone','right_hand_phone'),
-    'f4' : 'Presense of left hand with phone',
+    'f4' : ('Presense of left hand with phone','left_hand_phone'),
     'f5' : ('Presense of phone', 'phone'),
     'f6' : 'Left wrist present',
     'f7' : 'Right wrist preset',
@@ -26,7 +26,9 @@ _FEATS = OrderedDict({
     'f14' : 'Distance btw right wrist and head',
     'f15' : 'Centroid/Qudrant of right wrist(operating radio class)',
     'f16' : 'Distance btw head and steering centroid',
-    'f17' : 'Wrist present inside head object?'})
+    'f17' : 'Wrist present inside head object?',
+    'f18' : ('Cup present?', 'cup'),
+    'f19' : ('Presense of drinking near steering?', 'drinking_near_steering')})
 
 def _overlap_area(gt_rect, det_rect):
     """Computes overlap area percentage between ground truth box and detected box
@@ -135,7 +137,23 @@ def  _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box, tr
 
     return recovered_obj
 
-def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
+def _behind_head(obj, head_c, obj_cls, train=True):
+    obj_c_x = -1.0
+    behind = False
+    if(train):
+        hc_x = head_c[CLASSES.index(obj_cls)][0]
+    else:
+        # test samples do not have any class info. Hence we use mean of c0 category.
+        # TODO: instead of c0 category, replace by mean across all categories.
+        hc_x = head_c[0][0]
+
+    obj_c_x = (obj[2] - obj[0])/2.0 + obj[0]
+    if(obj_c_x < hc_x):
+        behind = True
+
+    return behind
+
+def _filter_detections(obj_dict, head_mean_c, steering_mean, train=True):
 
     filtered_dict = obj_dict
     def __filter_head(obj_dict):
@@ -154,15 +172,26 @@ def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
 
         return hf_dict
 
-    def __filter_wrists(obj_dict):
+    def __filter_wrists(obj_dict, head_c, train=True):
         wf_dict = obj_dict
+        # TODO: first remove all wrist detections which are behind the head and whose score is less than threshold
+        
         for img, objs in wf_dict.iteritems():
             wrists = objs['wrist']
+            to_remove = []
+            remain_wrists = []
+            for i, wr in enumerate(wrists):
+                if((_behind_head(wr, head_c, objs['cls'], train)) or (wr[4] < 0.95)):
+                    to_remove.append(i)
+            for i, box in enumerate(wrists):
+                if(i not in to_remove):
+                    remain_wrists.append(wrists[i])
+            # 
             # kind of NMS on the objects
-            if(len(wrists) >= 2):
-                wf_dict[img]['wrist'] = remove_multiple_detections(wrists, 2, 0.7)
+            if(len(remain_wrists) >= 2):
+                wf_dict[img]['wrist'] = remove_multiple_detections(remain_wrists, 2, 0.7)
             else:
-                pass
+                wf_dict[img]['wrist'] = remain_wrists
 
         return wf_dict
 
@@ -214,10 +243,31 @@ def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
         """ right hand with phone and left hand with phone is unusual. Remove double detections.
         """
         pf_dict = obj_dict
-        # TODO
+        to_filter = ('right_hand_phone', 'left_hand_phone')
+        for img, objs in pf_dict.iteritems():
+            # first make sure that all  objects have single detections. Take one with max score in case of multiple detections
+            for obj_cls in to_filter:
+                if(len(objs[obj_cls]) > 1):
+                    scores = [b[4] for b in objs[obj_cls]]
+                    pf_dict[img][obj_cls] = objs[obj_cls][scores.index(max(scores))]
+                elif(len(objs[obj_cls]) == 1):
+                    pf_dict[img][obj_cls] = objs[obj_cls][0]
+                else:
+                    pass
+            
+        for img, objs in pf_dict.iteritems():
+            scores = []
+            for obj_cls in to_filter:
+                if(objs[obj_cls]): # if the list is not empty.
+                    scores.append(objs[obj_cls][4])
+            if(len(scores) > 1):
+                keep_obj = to_filter[scores.index(max(scores))]
+                for obj_cls in to_filter:
+                    if obj_cls != keep_obj:
+                        pf_dict[img][obj_cls] = []
         return pf_dict
 
-    def __filter_phone(obj_dict, head_c, train=True):
+    def __filter_phone_or_cup(obj_dict, head_c, pc, thr=0.95, train=True):
         pf_dict = obj_dict
         top_score = 0
         for img, objs in pf_dict.iteritems():
@@ -230,22 +280,22 @@ def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
                 # TODO: instead of c0 category, replace by mean across all categories.
                 hc_x = head_c[0][0]
             #print objs['phone']
-            if(len(objs['phone']) > 1):
-                scores = [h[4]  for h in objs['phone']]
-                pf_dict[img]['phone'] = objs['phone'][scores.index(max(scores))]
+            if(len(objs[pc]) > 1):
+                scores = [h[4]  for h in objs[pc]]
+                pf_dict[img][pc] = objs[pc][scores.index(max(scores))]
                 top_score = max(scores)
                 # x co-ordinate of the box centroid
-                pc_x = (pf_dict[img]['phone'][2] - pf_dict[img]['phone'][0])/2.0 + pf_dict[img]['phone'][0]
-            elif(len(objs['phone']) == 1):
-                top_score = objs['phone'][0][4]
-                pf_dict[img]['phone'] = objs['phone'][0]
-                pc_x = (pf_dict[img]['phone'][2] - pf_dict[img]['phone'][0])/2.0 + pf_dict[img]['phone'][0]
+                pc_x = (pf_dict[img][pc][2] - pf_dict[img][pc][0])/2.0 + pf_dict[img][pc][0]
+            elif(len(objs[pc]) == 1):
+                top_score = objs[pc][0][4]
+                pf_dict[img][pc] = objs[pc][0]
+                pc_x = (pf_dict[img][pc][2] - pf_dict[img][pc][0])/2.0 + pf_dict[img][pc][0]
             else:
                 pass
             # threshold for phone detection
             # discard all phone detections which are behind the head
-            if(top_score < 0.95 or pc_x < hc_x):
-                pf_dict[img]['phone'] = []
+            if(top_score < thr or pc_x < hc_x):
+                pf_dict[img][pc] = []
                 
             
 
@@ -264,9 +314,11 @@ def _filter_detections(obj_dict, head_mean, steering_mean, train=True):
     print('Filtering multiple detections of phone with hands...')
     #filtered_dict =  __filter_phone_with_hands(filtered_dict)
     print('Filtering multiple detections of phone...')
-    filtered_dict =  __filter_phone(filtered_dict, head_mean, train)
+    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, 'phone', thr=0.95, train=train)
+    print('Filtering multiple detections of cup...')
+    #filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, 'cup', thr=0.95, train=train)
     print('Filtering wrists...')
-    filtered_dict = __filter_wrists(filtered_dict)
+    filtered_dict = __filter_wrists(filtered_dict, head_mean_c, train=train)
     print('Filtering of objects finished...')
     # TODO: all wrists and phones whose centroids are behind should be removed
 
@@ -388,7 +440,10 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     feat_dict = create_boolean_features(filtered_objs, 'f1', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f4', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f18', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f19', feat_dict)
     # distance btw head and steering
     #feat_dict = distance_btw_head_steering(filtered_objs, 'f10', feat_dict)
     feat_dict = head_wrist_vicinity(filtered_objs, 'f17', feat_dict)
@@ -400,7 +455,8 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     #plot_catwise_centroids(filtered_objs, 'left_hand_steering')
     #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
     #plot_catwise_centroids(filtered_objs, 'wrist', cat_range=(8,9))
-    plot_objpair_dist_histogram(filtered_objs, 'head', 'wrist', cat_range=(0,5))
+    #plot_catwise_centroids(filtered_objs, 'wrist', cat_range=(0,10))
+    #plot_objpair_dist_histogram(filtered_objs, 'head', 'wrist', cat_range=(0,10))
     if(train):
         mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
         return feat_dict, mean_model
