@@ -38,6 +38,7 @@ def get_likely_class(img_boxes):
     return pred_cat, rand_guess
 
 def get_class_prob(objs):
+    acc_wt = (0.894737, 0.653286, 0.98921, 0.714408, 0.966466, 0.729239, 0.815054, 0.795704, 0.676609, 0.883513)
     cat_score = [0.0]*10
     # get top score of all detected boxes per category.
     found = False
@@ -50,8 +51,11 @@ def get_class_prob(objs):
             score = [b[4] for b in boxes]
             cat_score[CLASSES.index(cat)] = max(score)
             found = True
-
+    
     if(found):
+        #cat_score = [max(0.005, cat_score[p]*acc_wt[p]) for p in range(10)]
+        #cat_score = [cat_score[p]*acc_wt[p] for p in range(10)]
+        #------------residue method----------------
         #pred_cat_idx = cat_score.index(max(cat_score))
         #residue = 1.0 - max(cat_score)
         #residue = max(0.05, residue)
@@ -66,13 +70,18 @@ def get_class_prob(objs):
         #    if(c != pred_cat_idx):
         #        prob[c] = other_prob[other]
         #        other += 1
+        # ----------simple method------------
         prob = cat_score[:]
         for c in range(10):
             if (prob[c] == 0.0):
-                prob[c] = 0.1
+                prob[c] = 0.005
+        
     else:
         prob = [0.1]*10
-    return prob
+
+    total = sum(prob)
+    norm_prob = [p/total for p in prob]
+    return norm_prob
     
 def show_confusion_matrix(mat):
     mat = mat.astype(np.float32)

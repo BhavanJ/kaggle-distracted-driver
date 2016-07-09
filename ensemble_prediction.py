@@ -23,7 +23,7 @@ def ensemble_pred(pred_files, list_file, out_file):
         with open(f, 'r') as pf:
             pred_lists.append(cPickle.load(pf))
 
-    weights = (0.5, 0.5)
+    weights = (0.8, 0.2)
     with open(list_file, 'r') as tf:
         for line in tf:
             img_name = line.rstrip('\n')
