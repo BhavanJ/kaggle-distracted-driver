@@ -81,7 +81,7 @@ def get_class_prob(objs):
 
     total = sum(prob)
     norm_prob = [p/total for p in prob]
-    return norm_prob
+    return norm_prob, found
     
 def show_confusion_matrix(mat):
     mat = mat.astype(np.float32)
@@ -135,7 +135,7 @@ def compute_accuracy(det_file, csv_label_file):
 
         report[act_idx, pred_idx] = report[act_idx, pred_idx] + 1
 
-        prob = get_class_prob(img_boxes)
+        prob, found = get_class_prob(img_boxes)
         p_i = prob[act_idx]
         p_i = max(min(p_i, 1-1e-15), 1e-15)
         loss += math.log(p_i)
@@ -156,9 +156,13 @@ def generate_test_predictions(pkl_files):
             obj_dict.update(cPickle.load(pf)['boxes'])
 
     prob_dict = {}
+    rand_guess = 0
     for img, objs in obj_dict.iteritems():
-        prob_dict[img] = get_class_prob(objs)
+        prob_dict[img], found = get_class_prob(objs)
+        if(not found):
+            rand_guess += 1
 
+    print('There are no boxes found for {:d} test images'.format(rand_guess))
     with open('head_based_test_predictions.pkl', 'w') as tf:
         cPickle.dump(prob_dict, tf)
 

@@ -5,6 +5,10 @@ import cPickle
 import numpy as np
 import sklearn
 from sklearn import tree
+from sklearn import ensemble
+from sklearn import linear_model
+from sklearn import naive_bayes
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.externals.six import StringIO
 import pydot
 
@@ -70,7 +74,7 @@ def generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y):
         
      
 def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
-
+    print('--------------Decision Tree Classifier-------------')
     assert(len(train_x) == len(train_y)), 'No of training amples != labels'
     assert(len(val_x) == len(val_y)), 'No of validation amples != labels'
 
@@ -92,6 +96,12 @@ def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
 
     # compute training and validation loss
     generate_kaggle_eval_metrics(train_pred_prob, train_y, val_pred_prob, val_y)
+    print('Probability calibration.....')
+    clf_isotonic = CalibratedClassifierCV(trained_clf, cv=2, method='isotonic')
+    clf_isotonic.fit(train_x, train_y)
+    train_prob_isotonic = clf_isotonic.predict_proba(train_x)
+    val_prob_isotonic = clf_isotonic.predict_proba(val_x)
+    generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
 
     if(gen_pic):
         assert(feats), 'Specify the feature names used for training'
@@ -106,6 +116,68 @@ def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
         graph.write_pdf("dd_classifier.pdf") 
 
     return trained_clf
+
+def random_forest_classifier(train_x, train_y, val_x, val_y):
+    print('-------Random Forest Classifier-----------')
+    clf = sklearn.ensemble.forest.RandomForestClassifier()
+    clf = clf.fit(train_x, train_y)
+    train_pred = clf.predict(train_x)
+    train_prob = clf.predict_proba(train_x)
+    train_acc = clf.score(train_x, train_y)
+    print('Train accuracy = {:f}'.format(train_acc))
+    val_pred = clf.predict(val_x)
+    val_prob = clf.predict_proba(val_x)
+    val_acc = clf.score(val_x, val_y)
+    print('Validation accuracy = {:f}'.format(val_acc))
+    generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y)
+    print('Probability calibration.....')
+    clf_isotonic = CalibratedClassifierCV(clf, cv=2, method='isotonic')
+    clf_isotonic.fit(train_x, train_y)
+    train_prob_isotonic = clf_isotonic.predict_proba(train_x)
+    val_prob_isotonic = clf_isotonic.predict_proba(val_x)
+    generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
+
+def logistic_regression_classifier(train_x, train_y, val_x, val_y):
+    print('-------Logistic Regression Classifier-----------')
+    #clf = sklearn.linear_model.LogisticRegression(max_iter=500)
+    clf = sklearn.linear_model.SGDClassifier(loss='log')
+    clf = clf.fit(train_x, train_y)
+    train_pred = clf.predict(train_x)
+    train_prob = clf.predict_proba(train_x)
+    train_acc = clf.score(train_x, train_y)
+    print('Train accuracy = {:f}'.format(train_acc))
+    val_pred = clf.predict(val_x)
+    val_prob = clf.predict_proba(val_x)
+    val_acc = clf.score(val_x, val_y)
+    print('Validation accuracy = {:f}'.format(val_acc))
+    generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y)
+    print('Probability calibration.....')
+    clf_isotonic = CalibratedClassifierCV(clf, cv=2, method='isotonic')
+    clf_isotonic.fit(train_x, train_y)
+    train_prob_isotonic = clf_isotonic.predict_proba(train_x)
+    val_prob_isotonic = clf_isotonic.predict_proba(val_x)
+    generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
+
+def naive_bayes_classifier(train_x, train_y, val_x, val_y):
+    print('-------Naive Bayes Classifier-----------')
+    clf = sklearn.naive_bayes.GaussianNB()
+    clf = clf.fit(train_x, train_y)
+    train_pred = clf.predict(train_x)
+    train_prob = clf.predict_proba(train_x)
+    train_acc = clf.score(train_x, train_y)
+    print('Train accuracy = {:f}'.format(train_acc))
+    val_pred = clf.predict(val_x)
+    val_prob = clf.predict_proba(val_x)
+    val_acc = clf.score(val_x, val_y)
+    print('Validation accuracy = {:f}'.format(val_acc))
+    generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y)
+    clf_isotonic = CalibratedClassifierCV(clf, cv=2, method='isotonic')
+    clf_isotonic.fit(train_x, train_y)
+    train_prob_isotonic = clf_isotonic.predict_proba(train_x)
+    val_prob_isotonic = clf_isotonic.predict_proba(val_x)
+    generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
+
+
 if __name__=='__main__':
     args = parse_args()
 
@@ -150,8 +222,11 @@ if __name__=='__main__':
 
     clf = dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=train_feats)
 
+    random_forest_classifier(train_x, train_y, val_x, val_y)
+    logistic_regression_classifier(train_x, train_y, val_x, val_y)
+    naive_bayes_classifier(train_x, train_y, val_x, val_y)
     # Testing.
-    
+    """
     print('Training and validation done\nStarting testing...')
     print('Reading the bounding box file for testset')
     test_obj_dlist = []
@@ -192,5 +267,6 @@ if __name__=='__main__':
     with open('test_predictions.pkl', 'w') as pf:
         cPickle.dump(test_predictions, pf)
         print('Stored test predictions in {:s}'.format('test_predictions.pkl'))
+    """
     
     
