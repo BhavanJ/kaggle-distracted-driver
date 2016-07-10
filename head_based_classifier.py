@@ -5,9 +5,11 @@ import matplotlib.pyplot as plt
 from random import randint
 import csv, cPickle
 import math
+from pickle_processor import naive_bayes_classifier, logistic_regression_classifier, dt_classifier, random_forest_classifier
+from ensemble_prediction import is_equal_prob
 
 CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
-
+HEAD_OBJS = ('c0_head', 'c1_head', 'c2_head', 'c3_head','c4_head','c5_head','c6_head','c7_head','c8_head','c9_head')
 def parse_args():
     parser = argparse.ArgumentParser(description='Takes detection files to generate features.')
     parser.add_argument('--train', dest='train_pkl_files', nargs='+', help='Training object pickle files')
@@ -148,6 +150,118 @@ def compute_accuracy(det_file, csv_label_file):
     print('Overall loss = {:f}'.format(loss))
     #show_confusion_matrix(report)
 
+def get_feat_vector(objs):
+    feat_vec = []
+    for head in HEAD_OBJS:
+        if(len(objs[head]) == 0):
+            feat_vec.append(-1.0)
+        #else:
+        #    feat_vec.append(1.0)
+        elif(len(objs[head]) == 1):
+            feat_vec.append(objs[head][0][4])
+        else:
+            # take the one with max score
+            scores = [h[4] for h in objs[head]]
+            feat_vec.append(max(scores))
+    return feat_vec
+
+def get_feat_matrix(feat_dict, train=False, cls_info=None, shuffle=False):
+    assert(train == True and cls_info != None), 'Need class info for training'
+
+    no_samples = len(feat_dict)
+    ndim = 10
+    X = np.zeros(shape=(no_samples, ndim), dtype=np.float32)
+    if train:
+        y = np.zeros(shape=(no_samples), dtype=np.float32)
+
+
+    s = 0
+    zero_objs = 0
+    for img, objs in feat_dict.iteritems():
+        feat_vec = get_feat_vector(objs)
+        # neglect the images with no box detections
+        if(not is_equal_prob(feat_vec, 0.0)):
+            if(train):
+                assert(cls_info.has_key(img)), 'Class info not found for the image'
+                y[s] = float(CLASSES.index(cls_info[img]))
+            X[s,:] = feat_vec
+            s += 1
+        else:
+            zero_objs += 1
+    X = X[0:s, :]
+    y = y[0:s]
+    print('No of images with zero objects = {:d}'.format(zero_objs))
+    if(train):
+        if(shuffle):
+            # Randomly reshuffle the data
+            rand_idx = np.random.permutation(len(X))
+            X = X[rand_idx]
+            y = y[rand_idx]
+        return X, y
+    else:
+        return X
+
+
+def head_based_classifier(train_pkl_file, csv_label_file, test_pkl_files):
+    assert(os.path.exists(csv_label_file)), 'Class info CSV file not found'
+    # read the csv file containing category info and populate
+    cls_info = {}
+    with open(csv_label_file, 'r') as cf:
+        data = csv.reader(cf)
+        for row in data:
+            cls_info[row[2]] = row[1]
+
+    # create prediction dictionary for the training set
+    with open(train_pkl_file, 'r') as df:
+        train_pred = cPickle.load(df)['boxes']
+
+    assert (len(train_pred) == len(cls_info)), 'No if predictions != no of images in the set.'
+
+    X, y = get_feat_matrix(train_pred, train=True, cls_info=cls_info, shuffle=True)
+
+    train_percent = 0.8
+    no_train_samples = int(train_percent*len(X))
+    train_x = X[0:no_train_samples]
+    val_x = X[no_train_samples:]
+    train_y = y[0:no_train_samples]
+    val_y = y[no_train_samples:]
+    #mean and variance normalization
+    mean_x = np.mean(train_x, axis=0)
+    std_x = np.maximum(np.std(train_x, axis=0), 1e-14)
+    train_x = (train_x - mean_x)/std_x
+    val_x = (val_x - mean_x)/std_x  
+    print train_x[0:10]
+    #dt_clf = dt_classifier(train_x, train_y, val_x, val_y)
+    #rf_clf = random_forest_classifier(train_x, train_y, val_x, val_y)
+    lr_clf = logistic_regression_classifier(train_x, train_y, val_x, val_y)
+    #naive_bayes_classifier(train_x, train_y, val_x, val_y)
+    #sys.exit()
+    # testing
+    test_pred = {}
+    for pkl_file in test_pkl_files:
+        with open(pkl_file, 'r') as pf:
+            test_pred.update(cPickle.load(pf)['boxes'])
+
+    test_prob = {}
+    img_no = 0
+    for img, objs in test_pred.iteritems():
+        fvec = get_feat_vector(objs)
+        if(not is_equal_prob(fvec, 0.0)):
+            x = np.array(fvec, dtype=np.float32)
+            x = x.reshape(1, -1)
+            x = (x - mean_x)/std_x
+            prob = lr_clf.predict_proba(x)
+            test_prob[img] = prob[0].tolist()
+        else:
+            test_prob[img] = [0.1]*10
+        img_no += 1
+        if(img_no % 1000 == 0):
+            print('{:d}'.format(img_no/1000))
+
+    with open('head_classifer_predictions.pkl', 'w') as pf:
+        cPickle.dump(test_prob, pf)
+        print('Stored test predictions in {:s}'.format('head_classifer_predictions.pkl'))
+
 def generate_test_predictions(pkl_files):
 
     obj_dict = {}
@@ -168,7 +282,9 @@ def generate_test_predictions(pkl_files):
 
 if __name__=='__main__':
     args = parse_args()
-    compute_accuracy(args.train_pkl_files[0], args.csv)
-    generate_test_predictions(args.test_pkl_files)
-
+    print('----Majoriry vote intutive classification----')
+    #compute_accuracy(args.train_pkl_files[0], args.csv)
+    #generate_test_predictions(args.test_pkl_files)
+    print('----Trained classifier based classification---')
+    head_based_classifier(args.train_pkl_files[0], args.csv, args.test_pkl_files)
 

@@ -115,7 +115,8 @@ def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
         graph = pydot.graph_from_dot_data(dot_data.getvalue()) 
         graph.write_pdf("dd_classifier.pdf") 
 
-    return trained_clf
+    #return trained_clf
+    return clf_isotonic
 
 def random_forest_classifier(train_x, train_y, val_x, val_y):
     print('-------Random Forest Classifier-----------')
@@ -124,11 +125,11 @@ def random_forest_classifier(train_x, train_y, val_x, val_y):
     train_pred = clf.predict(train_x)
     train_prob = clf.predict_proba(train_x)
     train_acc = clf.score(train_x, train_y)
-    print('Train accuracy = {:f}'.format(train_acc))
+    print('Train accuracy = {:f}'.format(train_acc*100))
     val_pred = clf.predict(val_x)
     val_prob = clf.predict_proba(val_x)
     val_acc = clf.score(val_x, val_y)
-    print('Validation accuracy = {:f}'.format(val_acc))
+    print('Validation accuracy = {:f}'.format(val_acc*100))
     generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y)
     print('Probability calibration.....')
     clf_isotonic = CalibratedClassifierCV(clf, cv=2, method='isotonic')
@@ -137,19 +138,21 @@ def random_forest_classifier(train_x, train_y, val_x, val_y):
     val_prob_isotonic = clf_isotonic.predict_proba(val_x)
     generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
 
+    return clf_isotonic
+
 def logistic_regression_classifier(train_x, train_y, val_x, val_y):
     print('-------Logistic Regression Classifier-----------')
-    #clf = sklearn.linear_model.LogisticRegression(max_iter=500)
-    clf = sklearn.linear_model.SGDClassifier(loss='log')
+    #clf = sklearn.linear_model.LogisticRegression(max_iter=1, solver='liblinear', tol=0.001)
+    clf = sklearn.linear_model.SGDClassifier(loss='log', n_iter=1000, random_state=1234, learning_rate='invscaling', eta0=0.001)
     clf = clf.fit(train_x, train_y)
     train_pred = clf.predict(train_x)
     train_prob = clf.predict_proba(train_x)
     train_acc = clf.score(train_x, train_y)
-    print('Train accuracy = {:f}'.format(train_acc))
+    print('Train accuracy = {:f}'.format(train_acc*100))
     val_pred = clf.predict(val_x)
     val_prob = clf.predict_proba(val_x)
     val_acc = clf.score(val_x, val_y)
-    print('Validation accuracy = {:f}'.format(val_acc))
+    print('Validation accuracy = {:f}'.format(val_acc*100))
     generate_kaggle_eval_metrics(train_prob, train_y, val_prob, val_y)
     print('Probability calibration.....')
     clf_isotonic = CalibratedClassifierCV(clf, cv=2, method='isotonic')
@@ -157,6 +160,8 @@ def logistic_regression_classifier(train_x, train_y, val_x, val_y):
     train_prob_isotonic = clf_isotonic.predict_proba(train_x)
     val_prob_isotonic = clf_isotonic.predict_proba(val_x)
     generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
+
+    return clf_isotonic
 
 def naive_bayes_classifier(train_x, train_y, val_x, val_y):
     print('-------Naive Bayes Classifier-----------')
@@ -177,6 +182,7 @@ def naive_bayes_classifier(train_x, train_y, val_x, val_y):
     val_prob_isotonic = clf_isotonic.predict_proba(val_x)
     generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
 
+    return clf_isotonic
 
 if __name__=='__main__':
     args = parse_args()

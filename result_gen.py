@@ -49,13 +49,9 @@ if __name__=='__main__':
                 rand_prob_cnt += 1
             else:
                 prob = pred_dict[img_name]
-                # hack to boost the most probable class close to 1
-                # This did not help to improve the score.. hence discarding for time being :(
-                # Failed to improve the score twice :( :(. No more tricks !
-                #prob = prob_boost(prob)
-
             s = np.sum(prob)
             prob = prob/s
             result[img_name] = prob.tolist()
+            #result[img_name] = prob
     print('Did not find predictions for {:d} images'.format(rand_prob_cnt))
     generate_result_sheet(result)
