@@ -49,9 +49,9 @@ if __name__=='__main__':
                 rand_prob_cnt += 1
             else:
                 prob = pred_dict[img_name]
-            s = np.sum(prob)
-            prob = prob/s
-            result[img_name] = prob.tolist()
-            #result[img_name] = prob
+            #s = np.sum(prob)
+            #prob = prob/s
+            #result[img_name] = prob.tolist()
+            result[img_name] = prob
     print('Did not find predictions for {:d} images'.format(rand_prob_cnt))
     generate_result_sheet(result)

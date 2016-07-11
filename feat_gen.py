@@ -20,8 +20,8 @@ _FEATS = OrderedDict({
     'f8' : 'Bottle/can present',
     'f9' : 'Steering present',
     'f10' : 'Distance btw head and steering centroid',
-    'f11' : 'Distance btw left wrist and steering',
-    'f12' : 'Distance btw right wrist and steering',
+    'f11' : 'Distance btw  wrist and steering',
+    'f12' : 'Distance btw head and phone',
     'f13' : 'Distance btw left wrist and head',
     'f14' : 'Distance btw right wrist and head',
     'f15' : 'Centroid/Qudrant of right wrist(operating radio class)',
@@ -358,15 +358,19 @@ def distance_btw_head_steering(obj_dict, feat, feat_dict):
         feat_dict[img][feat] = (feat_dict[img][feat]-min_dist) / max_dist
     return feat_dict
 
-def head_wrist_vicinity(obj_dict, feat, feat_dict):
+def objs_vicinity_feature(obj_dict, feat, feat_dict, pri_obj, sec_obj):
     for img, objs in obj_dict.iteritems():
         feat_val = 0.0
-        if(len(objs['wrist']) != 0):
-            head = objs['head']
-            for wrist in objs['wrist']:
-                overlap = _overlap_area(head[:4], wrist[:4])
-                if(overlap > 0.7):
-                    feat_val = 1.0
+        if((len(objs[sec_obj]) != 0) and (len(objs[pri_obj]) != 0)):
+            po = objs[pri_obj]
+            if(isinstance(objs[sec_obj][0], list)):
+                ov = []
+                for so in objs[sec_obj]:
+                    overlap = _overlap_area(po[:4], so[:4])
+                    ov.append(overlap)
+                feat_val = max(ov)
+            else:
+                feat_val = _overlap_area(po[:4], objs[sec_obj][:4])
 
         feat_dict[img][feat] = feat_val
 
@@ -377,10 +381,12 @@ def wrist_radio_vicinity(obj_dict, feat, feat_dict):
         feat_val = 0.0
         if(len(objs['wrist']) != 0 and len(objs['radio']) != 0):
             radio = objs['radio']
+            ov = []
             for wrist in objs['wrist']:
                 overlap = _overlap_area(radio[:4], wrist[:4])
-                if(overlap > 0.5):
-                    feat_val = 1.0
+                #if(overlap > 0.5):
+                #    feat_val = 1.0
+                
         feat_dict[img][feat] = feat_val
 
     return feat_dict
@@ -456,14 +462,16 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     feat_dict = create_boolean_features(filtered_objs, 'f1', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
-    feat_dict = create_boolean_features(filtered_objs, 'f4', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f4', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
-    feat_dict = create_boolean_features(filtered_objs, 'f18', feat_dict)
-    feat_dict = create_boolean_features(filtered_objs, 'f19', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f18', feat_dict)
+    #feat_dict = create_boolean_features(filtered_objs, 'f19', feat_dict)
     # distance btw head and steering
     #feat_dict = distance_btw_head_steering(filtered_objs, 'f10', feat_dict)
-    feat_dict = head_wrist_vicinity(filtered_objs, 'f17', feat_dict)
-    feat_dict = wrist_radio_vicinity(filtered_objs, 'f16', feat_dict)
+    objs_vicinity_feature(filtered_objs, 'f17', feat_dict, 'head', 'wrist')
+    objs_vicinity_feature(filtered_objs, 'f16', feat_dict, 'radio', 'wrist')
+    #objs_vicinity_feature(filtered_objs, 'f11', feat_dict, 'steering', 'wrist')
+    objs_vicinity_feature(filtered_objs, 'f12', feat_dict, 'head', 'phone')
 
     #print filtered_objs
     #plot_catwise_centroids(filtered_objs, 'head')
@@ -473,7 +481,7 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
     #plot_catwise_centroids(filtered_objs, 'wrist', cat_range=(8,9))
     #plot_catwise_centroids(filtered_objs, 'radio', cat_range=(0,10))
-    #plot_objpair_dist_histogram(filtered_objs, 'radio', 'wrist', cat_range=(0,10))
+    #plot_objpair_dist_histogram(filtered_objs, 'head', 'phone', cat_range=(0,10))
     if(train):
         mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
         return feat_dict, mean_model

@@ -226,13 +226,18 @@ if __name__=='__main__':
     train_y = y[0:no_train_samples]
     val_y = y[no_train_samples:]
 
-    clf = dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=train_feats)
+    # mean and variance normalization
+    mean_x = np.mean(train_x, axis=0)
+    std_x = np.maximum(np.std(train_x, axis=0), 1e-14)
+    train_x = (train_x - mean_x)/std_x
+    val_x = (val_x - mean_x)/std_x
+    dt_clf = dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=train_feats)
 
-    random_forest_classifier(train_x, train_y, val_x, val_y)
-    logistic_regression_classifier(train_x, train_y, val_x, val_y)
-    naive_bayes_classifier(train_x, train_y, val_x, val_y)
+    rf_clf = random_forest_classifier(train_x, train_y, val_x, val_y)
+    #logistic_regression_classifier(train_x, train_y, val_x, val_y)
+    #naive_bayes_classifier(train_x, train_y, val_x, val_y)
     # Testing.
-    """
+    
     print('Training and validation done\nStarting testing...')
     print('Reading the bounding box file for testset')
     test_obj_dlist = []
@@ -267,12 +272,13 @@ if __name__=='__main__':
         fvec = [ft[f] for f in train_feats]
         x = np.array(fvec, dtype=np.float32)
         x = x.reshape(1, -1)
-        prob = clf.predict_proba(x)
+        x = (x - mean_x)/std_x
+        prob = rf_clf.predict_proba(x)
         test_predictions[img] = prob[0].tolist()
 
     with open('test_predictions.pkl', 'w') as pf:
         cPickle.dump(test_predictions, pf)
         print('Stored test predictions in {:s}'.format('test_predictions.pkl'))
-    """
+    
     
     
