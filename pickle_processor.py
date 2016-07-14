@@ -237,7 +237,6 @@ if __name__=='__main__':
     #logistic_regression_classifier(train_x, train_y, val_x, val_y)
     #naive_bayes_classifier(train_x, train_y, val_x, val_y)
     # Testing.
-    
     print('Training and validation done\nStarting testing...')
     print('Reading the bounding box file for testset')
     test_obj_dlist = []
@@ -273,12 +272,10 @@ if __name__=='__main__':
         x = np.array(fvec, dtype=np.float32)
         x = x.reshape(1, -1)
         x = (x - mean_x)/std_x
-        prob = rf_clf.predict_proba(x)
+        prob = dt_clf.predict_proba(x)
         test_predictions[img] = prob[0].tolist()
 
     with open('test_predictions.pkl', 'w') as pf:
         cPickle.dump(test_predictions, pf)
         print('Stored test predictions in {:s}'.format('test_predictions.pkl'))
-    
-    
-    
+   

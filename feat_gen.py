@@ -24,7 +24,7 @@ _FEATS = OrderedDict({
     'f12' : 'Distance btw head and phone',
     'f13' : 'Distance btw left wrist and head',
     'f14' : 'Distance btw right wrist and head',
-    'f15' : 'Centroid/Qudrant of right wrist(operating radio class)',
+    'f15' : ('Drinking near steering', 'drinking_near_steering'),
     'f16' : 'Wrist present inside radio?',
     'f17' : 'Wrist present inside head object?',
     'f18' : ('Cup present?', 'cup'),
@@ -462,10 +462,11 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     feat_dict = create_boolean_features(filtered_objs, 'f1', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f2', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
-    #feat_dict = create_boolean_features(filtered_objs, 'f4', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f4', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
-    #feat_dict = create_boolean_features(filtered_objs, 'f18', feat_dict)
-    #feat_dict = create_boolean_features(filtered_objs, 'f19', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f15', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f18', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f19', feat_dict)
     # distance btw head and steering
     #feat_dict = distance_btw_head_steering(filtered_objs, 'f10', feat_dict)
     objs_vicinity_feature(filtered_objs, 'f17', feat_dict, 'head', 'wrist')

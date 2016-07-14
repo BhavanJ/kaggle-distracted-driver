@@ -95,6 +95,7 @@ def create_objs_fset(train_obj_files, test_obj_files, cls_csv_file):
             dummy_cls_info[img] = 'u' # unknown
 
     # compute features for test images
+    test_obj_feat = {}
     test_obj_feat = compute_features(test_obj_dict_list, dummy_cls_info, train=False,
         head_mean_c=obj_mean_model[0],
         steering_mean_c=obj_mean_model[1],
@@ -170,7 +171,7 @@ def cls_main(args):
     rf_clf = random_forest_classifier(train_x, train_y, val_x, val_y)
     lr_clf = logistic_regression_classifier(train_x, train_y, val_x, val_y)
     #naive_bayes_classifier(train_x, train_y, val_x, val_y)
-
+    sys.exit()
     final_clf = lr_clf
     # compute probabilities of all classes for all images
     assert(len(test_obj_fset) == len(test_head_fset)), 'No images in object set != those in head set'

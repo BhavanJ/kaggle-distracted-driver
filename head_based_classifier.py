@@ -154,7 +154,7 @@ def get_feat_vector(objs):
     feat_vec = []
     for head in HEAD_OBJS:
         if(len(objs[head]) == 0):
-            feat_vec.append(-1.0)
+            feat_vec.append(0.0)
         #else:
         #    feat_vec.append(1.0)
         elif(len(objs[head]) == 1):
@@ -179,14 +179,13 @@ def get_feat_matrix(feat_dict, train=False, cls_info=None, shuffle=False):
     zero_objs = 0
     for img, objs in feat_dict.iteritems():
         feat_vec = get_feat_vector(objs)
-        # neglect the images with no box detections
-        if(not is_equal_prob(feat_vec, 0.0)):
-            if(train):
-                assert(cls_info.has_key(img)), 'Class info not found for the image'
-                y[s] = float(CLASSES.index(cls_info[img]))
-            X[s,:] = feat_vec
-            s += 1
-        else:
+        if(train):
+            assert(cls_info.has_key(img)), 'Class info not found for the image'
+            y[s] = float(CLASSES.index(cls_info[img]))
+        X[s,:] = feat_vec
+        s += 1
+        # just a count to see how many images are with no objects.
+        if(is_equal_prob(feat_vec, 0.0)):
             zero_objs += 1
     X = X[0:s, :]
     y = y[0:s]
@@ -246,14 +245,12 @@ def head_based_classifier(train_pkl_file, csv_label_file, test_pkl_files):
     img_no = 0
     for img, objs in test_pred.iteritems():
         fvec = get_feat_vector(objs)
-        if(not is_equal_prob(fvec, 0.0)):
-            x = np.array(fvec, dtype=np.float32)
-            x = x.reshape(1, -1)
-            x = (x - mean_x)/std_x
-            prob = lr_clf.predict_proba(x)
-            test_prob[img] = prob[0].tolist()
-        else:
-            test_prob[img] = [0.1]*10
+        x = np.array(fvec, dtype=np.float32)
+        x = x.reshape(1, -1)
+        x = (x - mean_x)/std_x
+        prob = lr_clf.predict_proba(x)
+        test_prob[img] = prob[0].tolist()
+
         img_no += 1
         if(img_no % 1000 == 0):
             print('{:d}'.format(img_no/1000))
