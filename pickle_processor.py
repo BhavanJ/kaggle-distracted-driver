@@ -11,6 +11,7 @@ from sklearn import naive_bayes
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.externals.six import StringIO
 import pydot
+from kaggle_utils import show_accuracy_matrix
 
 # local imports
 from feat_gen import compute_features, CLASSES
@@ -103,6 +104,8 @@ def dt_classifier(train_x, train_y, val_x, val_y, gen_pic=False, feats=()):
     val_prob_isotonic = clf_isotonic.predict_proba(val_x)
     generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
 
+    #show_accuracy_matrix(train_pred_prob, train_y, val_pred_prob, val_y)
+    show_accuracy_matrix(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
     if(gen_pic):
         assert(feats), 'Specify the feature names used for training'
         dot_data = StringIO() 
@@ -138,6 +141,9 @@ def random_forest_classifier(train_x, train_y, val_x, val_y):
     val_prob_isotonic = clf_isotonic.predict_proba(val_x)
     generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
 
+    # show the confusion matrix
+    #show_accuracy_matrix(train_prob, train_y, val_prob, val_y)
+    show_accuracy_matrix(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
     return clf_isotonic
 
 def logistic_regression_classifier(train_x, train_y, val_x, val_y):
@@ -161,6 +167,7 @@ def logistic_regression_classifier(train_x, train_y, val_x, val_y):
     val_prob_isotonic = clf_isotonic.predict_proba(val_x)
     generate_kaggle_eval_metrics(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
 
+    show_accuracy_matrix(train_prob_isotonic, train_y, val_prob_isotonic, val_y)
     return clf_isotonic
 
 def naive_bayes_classifier(train_x, train_y, val_x, val_y):
@@ -236,6 +243,7 @@ if __name__=='__main__':
     rf_clf = random_forest_classifier(train_x, train_y, val_x, val_y)
     #logistic_regression_classifier(train_x, train_y, val_x, val_y)
     #naive_bayes_classifier(train_x, train_y, val_x, val_y)
+    sys.exit() 
     # Testing.
     print('Training and validation done\nStarting testing...')
     print('Reading the bounding box file for testset')
@@ -275,7 +283,7 @@ if __name__=='__main__':
         prob = dt_clf.predict_proba(x)
         test_predictions[img] = prob[0].tolist()
 
-    with open('test_predictions.pkl', 'w') as pf:
+    with open('objset_test_predictions.pkl', 'w') as pf:
         cPickle.dump(test_predictions, pf)
-        print('Stored test predictions in {:s}'.format('test_predictions.pkl'))
+        print('Stored test predictions in {:s}'.format('objset_test_predictions.pkl'))
    

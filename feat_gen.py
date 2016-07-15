@@ -1,5 +1,5 @@
 import numpy as np
-from kaggle_utils import plot_mean_centroids, plot_catwise_centroids, plot_objpair_dist_histogram
+from kaggle_utils import plot_mean_centroids, plot_catwise_centroids, plot_objpair_dist_histogram, plot_abs_dist_histogram
 from collections import OrderedDict
 import math
 
@@ -15,20 +15,12 @@ _FEATS = OrderedDict({
     'f3' : ('Presense of right hand with phone','right_hand_phone'),
     'f4' : ('Presense of left hand with phone','left_hand_phone'),
     'f5' : ('Presense of phone', 'phone'),
-    'f6' : 'Left wrist present',
-    'f7' : 'Right wrist preset',
-    'f8' : 'Bottle/can present',
-    'f9' : 'Steering present',
-    'f10' : 'Distance btw head and steering centroid',
-    'f11' : 'Distance btw  wrist and steering',
-    'f12' : 'Distance btw head and phone',
-    'f13' : 'Distance btw left wrist and head',
-    'f14' : 'Distance btw right wrist and head',
-    'f15' : ('Drinking near steering', 'drinking_near_steering'),
-    'f16' : 'Wrist present inside radio?',
-    'f17' : 'Wrist present inside head object?',
-    'f18' : ('Cup present?', 'cup'),
-    'f19' : ('Presense of drinking near steering?', 'drinking_near_steering')})
+    'f6' : ('Cup present?', 'cup'),
+    'f7' : ('Drinking near steering', 'drinking_near_steering'),
+    'f8' : ('radio visible', 'radio'),
+    'f9' : 'Distance btw head and phone',
+    'f10' : 'Wrist present inside radio?',
+    'f11' : 'Wrist present inside head object?'})
 
 def _overlap_area(gt_rect, det_rect):
     """Computes overlap area percentage between ground truth box and detected box
@@ -391,6 +383,39 @@ def wrist_radio_vicinity(obj_dict, feat, feat_dict):
 
     return feat_dict
 
+def abs_distance_feat(obj_dict, feat, feat_dict, obj, ref='origin', ref_pt=None):
+    for img, objs in obj_dict.iteritems():
+        feat_val = 0.0
+        if(len(objs[obj]) != 0):
+            obj_box = objs[obj][:4]
+            obj_c = ((obj_box[2] - obj_box[0])/2.0 + obj_box[0], (obj_box[3] - obj_box[1])/2.0 + obj_box[1])
+            # find the distance
+            if(ref == 'origin'):
+                dist = math.sqrt(obj_c[0]**2 + obj_c[1]**2)
+            elif(ref == 'ydist'):
+                dist = obj_c[1]
+            elif(ref == 'xdist'):
+                dist = obj_c[0]
+            elif(ref == 'br'):
+                dist = math.sqrt((obj_c[0]-640)**2 + (obj_c[1] - 480)**2)
+            elif(ref == 'point'):
+                dist = math.sqrt((obj_c[0]-ref_pt[0])**2 + (obj_c[1] - ref_pt[1])**2)
+            else:
+                raise ValueError('Invalid reference point')
+        feat_dict[img][feat] = feat_val
+    return feat_dict
+
+def centroid_angle_feat(obj_dict, feat, feat_dict, obj):
+    for img, objs in obj_dict.iteritems():
+        angle = 0.0
+        if(len(objs[obj]) != 0):
+            obj_box = objs[obj][:4]
+            obj_c = ((obj_box[2] - obj_box[0])/2.0 + obj_box[0], (obj_box[3] - obj_box[1])/2.0 + obj_box[1])
+            angle = math.atan(float(obj_c[1])/obj_c[0])
+        feat_dict[img][feat] = math.degrees(angle)
+
+    return feat_dict
+
 def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     """ Given the list of dictionaries, with each dictionary containing some objects detected for each train/val/test image,
     this method computes the features required for the decision tree by combinining all object detections and interpretations.
@@ -464,16 +489,21 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     feat_dict = create_boolean_features(filtered_objs, 'f3', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f4', feat_dict)
     feat_dict = create_boolean_features(filtered_objs, 'f5', feat_dict)
-    feat_dict = create_boolean_features(filtered_objs, 'f15', feat_dict)
-    feat_dict = create_boolean_features(filtered_objs, 'f18', feat_dict)
-    feat_dict = create_boolean_features(filtered_objs, 'f19', feat_dict)
-    # distance btw head and steering
-    #feat_dict = distance_btw_head_steering(filtered_objs, 'f10', feat_dict)
-    objs_vicinity_feature(filtered_objs, 'f17', feat_dict, 'head', 'wrist')
-    objs_vicinity_feature(filtered_objs, 'f16', feat_dict, 'radio', 'wrist')
-    #objs_vicinity_feature(filtered_objs, 'f11', feat_dict, 'steering', 'wrist')
-    objs_vicinity_feature(filtered_objs, 'f12', feat_dict, 'head', 'phone')
+    feat_dict = create_boolean_features(filtered_objs, 'f6', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f7', feat_dict)
+    feat_dict = create_boolean_features(filtered_objs, 'f8', feat_dict)
+    feat_dict = objs_vicinity_feature(filtered_objs, 'f9', feat_dict, 'head', 'phone')
+    feat_dict = objs_vicinity_feature(filtered_objs, 'f10', feat_dict, 'radio', 'wrist')
+    feat_dict = objs_vicinity_feature(filtered_objs, 'f11', feat_dict, 'head', 'wrist')
+    feat_dict = abs_distance_feat(filtered_objs, 'f12', feat_dict, 'head', ref='ydist')
 
+    # global mean centroid for head
+    gx = [c[0] for c in head_mean_c]
+    gy = [c[1] for c in head_mean_c]
+    g_head_c = [sum(gx)/10.0, sum(gy)/10.0]
+    feat_dict = abs_distance_feat(filtered_objs, 'f12', feat_dict, 'head', ref='point', ref_pt=g_head_c)
+
+    #feat_dict = centroid_angle_feat(filtered_objs, 'f13', feat_dict, 'head')
     #print filtered_objs
     #plot_catwise_centroids(filtered_objs, 'head')
     #plot_catwise_centroids(filtered_objs, 'steering')
@@ -482,7 +512,9 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
     #plot_catwise_centroids(filtered_objs, 'right_hand_phone')
     #plot_catwise_centroids(filtered_objs, 'wrist', cat_range=(8,9))
     #plot_catwise_centroids(filtered_objs, 'radio', cat_range=(0,10))
+    #plot_catwise_centroids(filtered_objs, 'head', cat_range=(2, 5, 7))
     #plot_objpair_dist_histogram(filtered_objs, 'head', 'phone', cat_range=(0,10))
+    #plot_abs_dist_histogram(filtered_objs, 'head', ref='angle')
     if(train):
         mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
         return feat_dict, mean_model

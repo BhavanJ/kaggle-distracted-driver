@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import math
 
+CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
 def box_nms(rects, overlap_thr):
 
     assert(len(rects) != 0), 'There are no boxes in the list '
@@ -67,7 +68,7 @@ def plot_mean_centroids(cent_list, obj_info):
     ax.yaxis.tick_left()
     plt.show()
 
-def plot_catwise_centroids(obj_dict, obj_type, cat_range=(0,10)):
+def plot_catwise_centroids(obj_dict, obj_type, cat_range=range(0,10)):
     classes = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
     rect_list = [[] for i in range(10)]
     rect_cent = [[] for i in range(10)]
@@ -97,7 +98,7 @@ def plot_catwise_centroids(obj_dict, obj_type, cat_range=(0,10)):
     ax.set_ylim(ax.get_ylim()[::-1])
     ax.xaxis.tick_top()
     ax.yaxis.tick_left()
-    for c in range(*cat_range):
+    for c in cat_range:
         if (len(rect_cent[c])):
             plt.scatter(*zip(*rect_cent[c]), marker='o', color=colors[c], label=classes[c])
     plt.legend(loc=2)
@@ -146,6 +147,86 @@ def plot_objpair_dist_histogram(obj_dict, obj0, obj1, sep=True, cat_range=(0,10)
     plt.xlabel('Distance btw {:s} and {:s}'.format(obj0, obj1))
     plt.ylabel('Frequency of occurance')
     plt.show()
+
+def plot_abs_dist_histogram(obj_dict, obj, ref='origin', cat_range=(0,10)):
+    dist_dict = {}
+    for c in CLASSES:
+        dist_dict[c] = []
+
+    for img, objs in obj_dict.iteritems():
+        if(len(objs[obj]) == 0):
+            continue
+        # if more than one object of the type is present, take the first one
+        if(isinstance(objs[obj][0], list)):
+            obj_box = objs[obj][0][:4]
+        else:
+            obj_box = objs[obj][:4]
+
+        obj_c = ((obj_box[2] - obj_box[0])/2.0 + obj_box[0], (obj_box[3] - obj_box[1])/2.0 + obj_box[1])
+        # find the distance
+        if(ref == 'origin'):
+            dist = math.sqrt(obj_c[0]**2 + obj_c[1]**2)
+        elif(ref == 'ydist'):
+            dist = obj_c[1]
+        elif(ref == 'xdist'):
+            dist = obj_c[0]
+        elif(ref == 'br'):
+            dist = math.sqrt((obj_c[0]-640)**2 + (obj_c[1] - 480)**2)
+        elif(ref == 'angle'):
+            dist = math.degrees(math.atan(float(obj_c[1])/obj_c[0]))
+        else:
+            raise ValueError('Invalid reference point')
+        dist_dict[objs['cls']].append(dist)
+
+    colors = ('#080808', '#DAF7A6', '#EAF505', '#05F510', '#05F1F5', '#0D05F5', '#F505EA', '#633974', '#95A5A6', '#F50526')
+    fig, ax = plt.subplots(2, 5, sharex=True, sharey=True)
+    for c in range(*cat_range):
+        ax[c/5][c%5].hist(dist_dict[CLASSES[c]], 50, color=colors[c], label=CLASSES[c])
+        ax[c/5][c%5].set_title(CLASSES[c])
+        ax[c/5][c%5].grid(True)
         
+    plt.xlabel('Distance btw {:s} and {:s}'.format(obj, ref))
+    plt.ylabel('Frequency of occurance')
+    plt.show()
+def show_accuracy_matrix(train_prob_mat, train_cls_mat, val_prob_mat, val_cls_mat):
+    train_pred_cls = np.argmax(train_prob_mat, axis=1)
+    val_pred_cls = np.argmax(val_prob_mat, axis=1)
+    train_conf_mat = np.zeros(shape=(len(CLASSES), len(CLASSES)), dtype=np.float32)
+    val_conf_mat = np.zeros(shape=(len(CLASSES), len(CLASSES)), dtype=np.float32)
+    assert(len(train_prob_mat) == len(train_cls_mat) and len(val_prob_mat) == len(val_cls_mat))
+    for e in range(len(train_cls_mat)):
+        row = train_cls_mat[e]
+        col = train_pred_cls[e]
+        train_conf_mat[row, col] += 1
+    for e in range(len(val_cls_mat)):
+        row = val_cls_mat[e]
+        col = val_pred_cls[e]
+        val_conf_mat[row, col] += 1
+
+    
+    train_cls_total = np.sum(train_conf_mat, axis=1)
+    for r in range(train_conf_mat.shape[0]):
+        if(train_cls_total[r] != 0):
+            train_conf_mat[r] = train_conf_mat[r]/train_cls_total[r]
+
+    val_cls_total = np.sum(val_conf_mat, axis=1)
+    for r in range(val_conf_mat.shape[0]):
+        if(val_cls_total[r] != 0):
+            val_conf_mat[r] = val_conf_mat[r]/val_cls_total[r]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, sharex=True, sharey=True)
+    ax1.matshow(train_conf_mat, aspect='equal')
+    for (r, c), z in np.ndenumerate(train_conf_mat):
+        ax1.text(c, r, '{:0.2f}'.format(z), ha='center', va='center')
+    ax1.set_title('Training confusion matrix')
+    ax2.matshow(val_conf_mat, aspect='equal')
+    for (r, c), z in np.ndenumerate(val_conf_mat):
+        ax2.text(c, r, '{:0.2f}'.format(z), ha='center', va='center')
+    ax2.set_title('Validation confusion matrix')
+
+    plt.xticks(range(len(CLASSES)), CLASSES)
+    plt.yticks(range(len(CLASSES)), CLASSES)
+    plt.show()
+
 if __name__=='__main__':
     print('Nothing to execute')

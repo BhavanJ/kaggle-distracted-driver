@@ -148,7 +148,7 @@ def compute_accuracy(det_file, csv_label_file):
     print('Overall error  = {:f}%'.format(float(total_err_cnt)/len(cls_info)))
     print('Total random guesses = {:d}'.format(rand_guess_cnt))
     print('Overall loss = {:f}'.format(loss))
-    #show_confusion_matrix(report)
+    show_confusion_matrix(report)
 
 def get_feat_vector(objs):
     feat_vec = []
@@ -234,7 +234,8 @@ def head_based_classifier(train_pkl_file, csv_label_file, test_pkl_files):
     #rf_clf = random_forest_classifier(train_x, train_y, val_x, val_y)
     lr_clf = logistic_regression_classifier(train_x, train_y, val_x, val_y)
     #naive_bayes_classifier(train_x, train_y, val_x, val_y)
-    #sys.exit()
+
+    sys.exit()
     # testing
     test_pred = {}
     for pkl_file in test_pkl_files:
