@@ -145,7 +145,7 @@ def _behind_head(obj, head_c, obj_cls, train=True):
 
     return behind
 
-def _filter_detections(obj_dict, head_mean_c, steering_mean, train=True):
+def _filter_detections(obj_dict, head_mean_c, head_mean_box, steering_mean, train=True):
 
     filtered_dict = obj_dict
     def __filter_head(obj_dict):
@@ -259,18 +259,21 @@ def _filter_detections(obj_dict, head_mean_c, steering_mean, train=True):
                         pf_dict[img][obj_cls] = []
         return pf_dict
 
-    def __filter_phone_or_cup(obj_dict, head_c, pc, thr=0.95, train=True):
+    def __filter_phone_or_cup(obj_dict, head_c, head_mean_b, pc, thr=0.95, train=True):
         pf_dict = obj_dict
         top_score = 0
         for img, objs in pf_dict.iteritems():
             top_score = 0.0
             pc_x = -1.0
+            pc_y = -1.0
             if(train):
-                hc_x = head_c[CLASSES.index(objs['cls'])][0]
+                hc_x = head_mean_b[CLASSES.index(objs['cls'])][0]
+                hc_y = head_mean_b[CLASSES.index(objs['cls'])][1]
             else:
                 # test samples do not have any class info. Hence we use mean of c0 category.
                 # TODO: instead of c0 category, replace by mean across all categories.
                 hc_x = head_c[0][0]
+                hc_y = head_c[0][1]
             #print objs['phone']
             if(len(objs[pc]) > 1):
                 scores = [h[4]  for h in objs[pc]]
@@ -278,15 +281,17 @@ def _filter_detections(obj_dict, head_mean_c, steering_mean, train=True):
                 top_score = max(scores)
                 # x co-ordinate of the box centroid
                 pc_x = (pf_dict[img][pc][2] - pf_dict[img][pc][0])/2.0 + pf_dict[img][pc][0]
+                pc_y = (pf_dict[img][pc][3] - pf_dict[img][pc][1])/2.0 + pf_dict[img][pc][1]
             elif(len(objs[pc]) == 1):
                 top_score = objs[pc][0][4]
                 pf_dict[img][pc] = objs[pc][0]
                 pc_x = (pf_dict[img][pc][2] - pf_dict[img][pc][0])/2.0 + pf_dict[img][pc][0]
+                pc_y = (pf_dict[img][pc][3] - pf_dict[img][pc][1])/2.0 + pf_dict[img][pc][1]
             else:
                 pass
             # threshold for phone detection
-            # discard all phone detections which are behind the head
-            if(top_score < thr or pc_x < hc_x):
+            # discard all phone detections which are behind and above the head
+            if(top_score < thr or pc_x < hc_x or pc_y < hc_y):
                 pf_dict[img][pc] = []
                 
             
@@ -304,14 +309,14 @@ def _filter_detections(obj_dict, head_mean_c, steering_mean, train=True):
     print('Filtering hands on steering objects...')
     filtered_dict = __filter_hands_steering(filtered_dict)
     print('Filtering multiple detections of phone with hands...')
-    #filtered_dict =  __filter_phone_with_hands(filtered_dict)
+    filtered_dict =  __filter_phone_with_hands(filtered_dict)
     print('Filtering multiple detections of phone...')
-    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, 'phone', thr=0.95, train=train)
+    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, head_mean_box, 'phone', thr=0.95, train=train)
     print('Filtering multiple detections of cup...')
-    #filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, 'cup', thr=0.95, train=train)
+    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, head_mean_box, 'cup', thr=0.95, train=train)
     print('Filtering multiple detections of radio...')
     # just reuse same method for radio also
-    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, 'radio', thr=0.95, train=train)
+    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, head_mean_box, 'radio', thr=0.95, train=train)
     print('Filtering wrists...')
     filtered_dict = __filter_wrists(filtered_dict, head_mean_c, train=train)
     print('Filtering of objects finished...')
@@ -416,7 +421,7 @@ def centroid_angle_feat(obj_dict, feat, feat_dict, obj):
 
     return feat_dict
 
-def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
+def compute_features(obj_dict_list, img_cls_dict, train=True, get_objs=False, **kwargs):
     """ Given the list of dictionaries, with each dictionary containing some objects detected for each train/val/test image,
     this method computes the features required for the decision tree by combinining all object detections and interpretations.
 
@@ -461,7 +466,7 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
         combined_objs = _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box)
         
         # object filtering
-        filtered_objs = _filter_detections(combined_objs, head_mean_c, steering_mean_c)
+        filtered_objs = _filter_detections(combined_objs, head_mean_c, head_mean_box, steering_mean_c)
     else:
         # If the feature computation is on test set, replace
         # the missing items by the centroid computed on training set.
@@ -472,8 +477,14 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, **kwargs):
         steering_mean_box = kwargs['steering_mean_box']
         # recover mandatory objects(head and steering) using the mean centroid
         combined_objs = _recover_mandatory_objs(combined_objs, head_mean_box, steering_mean_box, train=False)
-        filtered_objs = _filter_detections(combined_objs, head_mean_c, steering_mean_c, train=False)
-        
+        filtered_objs = _filter_detections(combined_objs, head_mean_c, head_mean_box, steering_mean_c, train=False)
+    if(get_objs):
+        print('Returning filtered objects..')
+        if(train):
+            mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
+            return filtered_objs, mean_model
+        else:
+            return filtered_objs
 
 
     #plot_mean_centroids(head_mean_c, 'Centroid of head')
