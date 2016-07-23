@@ -188,6 +188,42 @@ def plot_abs_dist_histogram(obj_dict, obj, ref='origin', cat_range=(0,10)):
     plt.xlabel('Distance btw {:s} and {:s}'.format(obj, ref))
     plt.ylabel('Frequency of occurance')
     plt.show()
+
+def plot_relative_dist_histogram(obj_dict, pri_obj, sec_obj, cat_range=range(0, 10)):
+    dist_dict = {}
+    for c in CLASSES:
+        dist_dict[c] = []
+
+    for img, objs in obj_dict.iteritems():
+        if(len(objs[pri_obj]) == 0 or len(objs[sec_obj]) == 0):
+            continue
+        po = objs[pri_obj]
+        c1 = [(po[2]-po[0])/2. + po[0], (po[3]-po[1])/2. + po[1]]
+        if(isinstance(objs[sec_obj][0], list)):
+            dist = []
+            for so in objs[sec_obj]:
+                c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
+                d = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
+                dist.append(d)
+            feat_val = min(dist)
+        else:
+            so = objs[sec_obj]
+            c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
+            feat_val = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
+
+
+        dist_dict[objs['cls']].append(feat_val)
+
+    colors = ('#080808', '#DAF7A6', '#EAF505', '#05F510', '#05F1F5', '#0D05F5', '#F505EA', '#633974', '#95A5A6', '#F50526')
+    fig, ax = plt.subplots(2, 5, sharex=True, sharey=True)
+    for c in cat_range:
+        ax[c/5][c%5].hist(dist_dict[CLASSES[c]], 50, color=colors[c], label=CLASSES[c])
+        ax[c/5][c%5].set_title(CLASSES[c])
+        ax[c/5][c%5].grid(True)
+        
+    plt.xlabel('Distance btw {:s} and {:s}'.format(pri_obj, sec_obj))
+    plt.ylabel('Frequency of occurance')
+    plt.show()
 def show_accuracy_matrix(train_prob_mat, train_cls_mat, val_prob_mat, val_cls_mat):
     train_pred_cls = np.argmax(train_prob_mat, axis=1)
     val_pred_cls = np.argmax(val_prob_mat, axis=1)

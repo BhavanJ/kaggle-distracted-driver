@@ -13,6 +13,10 @@ HEAD_OBJS = ('c0_head', 'c1_head', 'c2_head', 'c3_head','c4_head','c5_head','c6_
 ISOLATED_OBJS = ('head', 'wrist', 'steering', 'radio', 'phone','cup',
     'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone', 'left_hand_phone', 'drinking_near_steering')
 
+# from the histogram plot over the training data
+WRIST_RADIO_LT = 150
+HEAD_WRIST_LT = 200
+
 def parse_args():
     parser = argparse.ArgumentParser(description='Takes detection files to generate features.')
     parser.add_argument('--train-obj', dest='train_obj_files', nargs='+', help='Training object pickle files')
@@ -141,9 +145,30 @@ def _reverse_prediction(iso_objs, likely):
         raise ValueError
 
     return conf_score
+
 def _forward_cls_prediction(iso_objs):
+    def __relative_dist(objs, pri_obj, sec_obj):
+        feat_val = 1000.0
+        if((len(objs[sec_obj]) != 0) and (len(objs[pri_obj]) != 0)):
+            po = objs[pri_obj]
+            c1 = [(po[2]-po[0])/2. + po[0], (po[3]-po[1])/2. + po[1]]
+            if(isinstance(objs[sec_obj][0], list)):
+                dist = []
+                for so in objs[sec_obj]:
+                    c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
+                    d = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
+                    dist.append(d)
+                feat_val = min(dist)
+            else:
+                so = objs[sec_obj]
+                c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
+                feat_val = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
+
+        return feat_val
+
+
     i_cls_idx = 
-    i_prob = 
+    i_prob = 0.
     # TODO: find the proper threshold for all objects using the score distribution for all classes.
     # for now let it be 0.95
     rhp = __is_present(iso_objs, 'right_hand_phone')
@@ -160,38 +185,60 @@ def _forward_cls_prediction(iso_objs):
     else:
         if(rhp > 0.95):
             # c1
+            i_cls_idx = 1
+            i_prob += rhp
         else:
             if(lhp > 0.95):
                 # c3
+                i_cls_idx = 3
+                i_prob += lhp
             else:
                 if(dns > 0.95 or cup > 0.95):
                     # c6
+                    i_cls_idx = 6
+                    i_prob += dns
+                    i_prob += cup
                 else:
                     if(lhs > 0.95):
                         # c2, c5, c7, c8, c9
-                        if(__relative_dist('radio', 'wrist') < WRIST_RADIO_LT):
+                        if(__relative_dist(iso_objs, 'radio', 'wrist') < WRIST_RADIO_LT):
                             # c5
+                            i_cls_idx = 5
+                            i_prob = lhs
                         else:
                             # c2, 7, 8, 9
-                            if(__relative_dist('head', 'wrist') < HEAD_WRIST_LT):
+                            if(__relative_dist(iso_objs, 'head', 'wrist') < HEAD_WRIST_LT):
                                 # c2, c8
                                 if(phone > 0.9):
                                     # c2
+                                    i_cls_idx = 2
+                                    i_prob = lhs
                                 else:
                                     # c8
+                                    i_cls_idx = 8
+                                    i_prob = lhs
                             else:
                                 # c7, 9
+                                # FIXME: assigning this to c7 as c9 is covered in the first case at the top
+                                i_cls_idx = 7
+                                i_prob = lhs
                     else:
                         if(rhs > 0.95):
                             # c4, 8, 9
-                            if(__relative_dist('head', 'wrist') < HEAD_WRIST_LT):
+                            if(__relative_dist(iso_objs, 'head', 'wrist') < HEAD_WRIST_LT):
                                 # c4, c8
                                 if(phone > 0.9):
                                     # c4
+                                    i_cls_idx = 4
+                                    i_prob = rhs
                                 else:
                                     # c8
+                                    i_cls_idx = 8
+                                    i_prob = lhs
                             else:
                                 # c9
+                                i_cls_idx = 9
+                                i_prob = lhs
 
 def _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, likely):
 

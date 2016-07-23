@@ -1,7 +1,8 @@
 import numpy as np
 from kaggle_utils import plot_mean_centroids, plot_catwise_centroids, plot_objpair_dist_histogram, plot_abs_dist_histogram
+from kaggle_utils import plot_relative_dist_histogram
 from collections import OrderedDict
-import math
+import math, sys
 
 _OBJS = ('head', 'wrist', 'steering', 'radio', 'phone','cup',
     'left_hand_steering', 'right_hand_steering', 'both_hands_steering', 'right_hand_phone', 'left_hand_phone', 'drinking_near_steering')
@@ -375,7 +376,7 @@ def objs_vicinity_feature(obj_dict, feat, feat_dict, pri_obj, sec_obj):
 
 def objs_relative_dist_feat(obj_dict, feat, feat_dict, pri_obj, sec_obj):
     for img, objs in obj_dict.iteritems():
-        feat_val = 0.0
+        feat_val = 1000.0
         if((len(objs[sec_obj]) != 0) and (len(objs[pri_obj]) != 0)):
             po = objs[pri_obj]
             c1 = [(po[2]-po[0])/2. + po[0], (po[3]-po[1])/2. + po[1]]
@@ -385,7 +386,7 @@ def objs_relative_dist_feat(obj_dict, feat, feat_dict, pri_obj, sec_obj):
                     c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
                     d = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2) 
                     dist.append(d)
-                feat_val = max(dist)
+                feat_val = min(dist)
             else:
                 so = objs[sec_obj]
                 c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
@@ -548,6 +549,8 @@ def compute_features(obj_dict_list, img_cls_dict, train=True, get_objs=False, **
     #plot_catwise_centroids(filtered_objs, 'head', cat_range=(2, 5, 7))
     #plot_objpair_dist_histogram(filtered_objs, 'head', 'phone', cat_range=(0,10))
     #plot_abs_dist_histogram(filtered_objs, 'head', ref='angle')
+    plot_relative_dist_histogram(filtered_objs, 'head', 'steering', cat_range=(0, 9))
+    sys.exit()
     if(train):
         mean_model = [head_mean_c, steering_mean_c, head_mean_box, steering_mean_box]
         return feat_dict, mean_model
