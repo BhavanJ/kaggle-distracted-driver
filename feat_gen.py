@@ -373,6 +373,28 @@ def objs_vicinity_feature(obj_dict, feat, feat_dict, pri_obj, sec_obj):
 
     return feat_dict
 
+def objs_relative_dist_feat(obj_dict, feat, feat_dict, pri_obj, sec_obj):
+    for img, objs in obj_dict.iteritems():
+        feat_val = 0.0
+        if((len(objs[sec_obj]) != 0) and (len(objs[pri_obj]) != 0)):
+            po = objs[pri_obj]
+            c1 = [(po[2]-po[0])/2. + po[0], (po[3]-po[1])/2. + po[1]]
+            if(isinstance(objs[sec_obj][0], list)):
+                dist = []
+                for so in objs[sec_obj]:
+                    c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
+                    d = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2) 
+                    dist.append(d)
+                feat_val = max(dist)
+            else:
+                so = objs[sec_obj]
+                c2 = [(so[2]-so[0])/2. + so[0], (so[3]-so[1])/2. + so[1]]
+                feat_val = math.sqrt((c1[0]-c2[0])**2 + (c1[1]-c2[1])**2)
+
+        feat_dict[img][feat] = feat_val
+
+    return feat_dict
+
 def wrist_radio_vicinity(obj_dict, feat, feat_dict):
     for img, objs in obj_dict.iteritems():
         feat_val = 0.0

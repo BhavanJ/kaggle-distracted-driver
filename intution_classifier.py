@@ -83,57 +83,214 @@ def filter_multiples(objs, labels):
             filt_objs[label] = boxes[0]
             found = True
             if(filt_objs[label][4] > max_score):
-                max_score = filt_objs[label]
+                max_score = filt_objs[label][4]
                 cls = label
         elif(len(boxes) > 1):
             scores = [b[4] for b in boxes]
             filt_objs[label] = boxes[scores.index(max(scores))]
             found = True
             if(filt_objs[label][4] > max_score):
-                max_score = filt_objs[label]
+                max_score = filt_objs[label][4]
                 cls = label
         else:
             filt_objs[label] = []
     return filt_objs, found, max_score, cls
 
+def _reverse_prediction(iso_objs, likely):
+    def __is_present(objs, obj_cls):
+        if(objs[obj_cls]):
+            return objs[obj_cls][4]
+        else:
+            return 0.0
+
+    conf_score = 0.0
+    if(likely == 'c0'):
+        # both_hands_steering should be present
+        conf_score += __is_present(iso_objs, 'both_hands_steering')
+    elif(likely == 'c1'):
+        conf_score += __is_present(iso_objs, 'phone')
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+        conf_score += __is_present(iso_objs, 'right_hand_phone')
+    elif(likely == 'c2'):
+        conf_score += __is_present(iso_objs, 'phone')
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+    elif(likely == 'c3'):
+        conf_score += __is_present(iso_objs, 'phone')
+        conf_score += __is_present(iso_objs, 'right_hand_steering')
+        conf_score += __is_present(iso_objs, 'left_hand_phone')
+    elif(likely == 'c4'):
+        conf_score += __is_present(iso_objs, 'phone')
+        conf_score += __is_present(iso_objs, 'right_hand_steering')
+    elif(likely == 'c5'):
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+    elif(likely == 'c6'):
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+        conf_score += __is_present(iso_objs, 'cup')
+        conf_score += __is_present(iso_objs, 'right_hand_steering')
+        conf_score += __is_present(iso_objs, 'drinking_near_steering')
+    elif(likely == 'c7'):
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+    elif(likely == 'c8'):
+        conf_score += __is_present(iso_objs, 'right_hand_steering')
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+    elif(likely == 'c9'):
+        conf_score += __is_present(iso_objs, 'right_hand_steering')
+        conf_score += __is_present(iso_objs, 'left_hand_steering')
+        conf_score += __is_present(iso_objs, 'both_hands_steering')
+    else:
+        raise ValueError
+
+    return conf_score
+def _forward_cls_prediction(iso_objs):
+    i_cls_idx = 
+    i_prob = 
+    # TODO: find the proper threshold for all objects using the score distribution for all classes.
+    # for now let it be 0.95
+    rhp = __is_present(iso_objs, 'right_hand_phone')
+    lhp = __is_present(iso_objs, 'left_hand_phone')
+    cup = __is_present(iso_objs, 'cup')
+    bhs = __is_present(iso_objs, 'both_hands_steering')
+    phone = __is_present(iso_objs, 'phone')
+    rhs = __is_present(iso_objs, 'right_hand_steering')
+    lhs = __is_present(iso_objs, 'left_hand_steering')
+    dns = __is_present(iso_objs, 'drinking_near_steering')
+
+    if(bhs > 0.95):
+        # c0 or c9
+    else:
+        if(rhp > 0.95):
+            # c1
+        else:
+            if(lhp > 0.95):
+                # c3
+            else:
+                if(dns > 0.95 or cup > 0.95):
+                    # c6
+                else:
+                    if(lhs > 0.95):
+                        # c2, c5, c7, c8, c9
+                        if(__relative_dist('radio', 'wrist') < WRIST_RADIO_LT):
+                            # c5
+                        else:
+                            # c2, 7, 8, 9
+                            if(__relative_dist('head', 'wrist') < HEAD_WRIST_LT):
+                                # c2, c8
+                                if(phone > 0.9):
+                                    # c2
+                                else:
+                                    # c8
+                            else:
+                                # c7, 9
+                    else:
+                        if(rhs > 0.95):
+                            # c4, 8, 9
+                            if(__relative_dist('head', 'wrist') < HEAD_WRIST_LT):
+                                # c4, c8
+                                if(phone > 0.9):
+                                    # c4
+                                else:
+                                    # c8
+                            else:
+                                # c9
+
+def _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, likely):
+
+    i_cls_idx = -100 
+    i_prob = 1e-14 
+    i_conf = False
+    # if the class is not certain in the head and fullimg based detectors, this can help to
+    # resolve uncertainity.
+    if(likely in CLASSES):
+        conf_score = _reverse_prediction(iso_objs, likely)
+        if(conf_score >= 0.9):
+            i_conf = True
+        else:
+            i_conf = False
+        i_cls_idx = CLASSES.index(likely)
+        h_score = head_objs[likely+'_head'][4]
+        f_score = fullimg_objs[likely][4]
+        # math.ceil(conf_score) gives the approx no of isolated objects that are detected to support this decision.
+        i_prob = (h_score + f_score + conf_score/math.ceil(conf_score))/3
+    elif(likely == 'conflict'):
+        # make conf = False so that the ensemble classifier results are used to make final decision
+        i_conf = False
+        i_cls_idx, i_prob = _forward_cls_prediction(iso_objs)
+    elif(likely == 'unsolved'):
+        i_conf = False
+        i_cls_idx, i_prob = _forward_cls_prediction(iso_objs)
+    else:
+        raise ValueError('Invalid option for variable <likely>')
+
+    return i_cls_idx, i_prob, i_conf
+
 def intutive_prediction(iso_objs, heads, fullimg_boxes):
     final_prob = [0.0001]*10
     certain = False
+    pred_cls = 'u'
+
+    def _get_top_classes(objs, labels, thr):
+        top_cls = []
+        for label in labels:
+            if(objs[label] and objs[label][4] > thr):
+                top_cls.append(label)
+        return top_cls
+
     #def __decide_based_on_isolated_objs(iso_objs)
     # isolated objs are already filtered. just remove multiple head detections
-    head_objs, found, max_score, cls = filter_multiples(heads, HEAD_OBJS)
-    print head_objs
-    print fullimg_boxes
-    sys.exit()
+    head_objs, h_found, h_max_score, h_cls = filter_multiples(heads, HEAD_OBJS)
     # filter  full image based objects
-    # TODO:
-    # found = found and full_img_found
+    fullimg_objs, f_found, f_max_score, f_cls = filter_multiples(fullimg_boxes, CLASSES)
+
+    conf_thr = 0.99
     # check if atleast one head detections among 10 classes is found
-    if(found):
-        # check if atleast one object has more than 0.99 score
-        if(max_score > 0.99):
-            # check if more than 1 objects have score > 0.99
-            if(1==1):
-                # more than 1 heads have score > 0.99
-                # see if this conflict can be resolved using isolated objs
-                pass
-            else:
-                if(cls in ('c2_head', 'c7_head')):
-                    # isolated objeccts are not getting detected for test images correctly. Take this path if they are not detected.
-                    # final detection is the one with max score.
-                    certain = True
-                    final_prob[HEAD_OBJS.index(cls)] = max_score
+    if(h_found and f_found):
+        # check if head and full image based detectors giving same class predictions.
+        if(h_cls.split('_')[0] == f_cls):
+            print('Both detectors are confident')
+            max_score = (h_max_score + f_max_score)/2
+            # check if atleast one object has more than 0.99 score
+            if(max_score > conf_thr):
+                # check if more than 1 objects have score > 0.99
+                h_top_cls = _get_top_classes(head_objs, HEAD_OBJS, conf_thr)
+                f_top_cls = _get_top_classes(fullimg_objs, CLASSES, conf_thr)
+                
+                if(len(h_top_cls)  > 1 or len(f_top_cls) > 1):
+                    # more than 1 heads have score > 0.99
+                    # see if this conflict can be resolved using isolated objs
+                    print('More than one class has max score')
+                    i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, f_cls)
+                    certain = i_conf
+                    final_prob[i_cls] = i_prob
                 else:
-                    # not certain. either take help of isolated objs or set certain = False
-                    pass
+                    if(h_cls in ('c2_head', 'c7_head')):
+                        # isolated objeccts are not getting detected for test images correctly. Take this path if they are not detected.
+                        # final detection is the one with max score.
+                        certain = True
+                        final_prob[HEAD_OBJS.index(h_cls)] = max_score
+                    else:
+                        # not certain. either take help of isolated objs or set certain = False
+                        certain = False
+                        final_prob[HEAD_OBJS.index(h_cls)] = max_score
+            else:
+                # need to take help from isolated object detections to decide the final prob
+                print('Score is < threshold')
+                i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, f_cls)
+                certain = i_conf
+                final_prob[i_cls] = i_prob
         else:
-            # need to take help from isolated object detections to decide the final prob
-            pass
+            print('Detectors are contradictiing each other.')
+            # detections from head and fullimage detector are contradicting. use isolated objects
+            i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, 'conflict')
+            certain = i_conf
+            final_prob[i_cls] = i_prob
         
     else:
         # decision is wholey based on the isolated objects.
-        pass
+        i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, 'unsolved')
+        certain = i_conf
+        final_prob[i_cls] = i_prob
 
+    return final_prob, pred_cls, certain
     
 def cls_main(args):
     train_cls_info = get_cls_dict(args.csv)
@@ -164,16 +321,17 @@ def cls_main(args):
             full_img_boxes = {}
             for cls in CLASSES:
                 if(len(boxes[cls]) == 1):
-                    full_img_boxes[cls] = boxes[cls][0]
+                    full_img_boxes[cls] = boxes[cls]
                 elif(len(boxes[cls]) > 1):
                     scores = [b[4] for b in boxes[cls]]
-                    full_img_boxes[cls] = boxes[cls][scores.index(max(scores))]
+                    full_img_boxes[cls] = [boxes[cls][scores.index(max(scores))]]
                 else:
                     full_img_boxes[cls] = []
             train_fullimg[img] = deepcopy(full_img_boxes)
 
         del temp_train_fullimg
     test_fullimg = {}
+    """
     for pkl_file in args.test_fullimg_files:
         print('Loading {:s}'.format(pkl_file))
         with open(pkl_file, 'r') as pf:
@@ -182,38 +340,39 @@ def cls_main(args):
                 full_img_boxes = {}
                 for cls in CLASSES:
                     if(len(boxes[cls]) == 1):
-                        full_img_boxes[cls] = boxes[cls][0]
+                        full_img_boxes[cls] = boxes[cls]
                     elif(len(boxes[cls]) > 1):
                         scores = [b[4] for b in boxes[cls]]
-                        full_img_boxes[cls] = boxes[cls][scores.index(max(scores))]
+                        full_img_boxes[cls] = [boxes[cls][scores.index(max(scores))]]
                     else:
                         full_img_boxes[cls] = []
                 test_fullimg[img] = deepcopy(full_img_boxes)
     del temp_test_fullimg
-
+    """
     # make predictions on the training set
     report = np.zeros(shape=(len(CLASSES), len(CLASSES)), dtype=np.int32)
     loss = 0.0
     err_cnt = 0
     for img, act_cls in train_cls_info.iteritems():
-        prob, pred_cls = intutive_prediction(iso_objs=train_objset[img], heads=train_heads[img], fullimg_boxes=train_fullimg[img])
-        pred_idx = CLASSES.index(pred_cls)
-        act_idx = CLASSES.index(act_cls)
-        if(pred_cls != act_cls):
-            err_cnt += 1
+        print img
+        prob, pred_cls, conf = intutive_prediction(iso_objs=train_objset[img], heads=train_heads[img], fullimg_boxes=train_fullimg[img])
+        #pred_idx = CLASSES.index(pred_cls)
+        #act_idx = CLASSES.index(act_cls)
+        #if(pred_cls != act_cls):
+        #    err_cnt += 1
 
-        report[act_idx, pred_idx] = report[act_idx, pred_idx] + 1
+        #report[act_idx, pred_idx] = report[act_idx, pred_idx] + 1
 
-        p_i = prob[act_idx]
-        p_i = max(min(p_i, 1-1e-15), 1e-15)
-        loss += math.log(p_i)
+        #p_i = prob[act_idx]
+        #p_i = max(min(p_i, 1-1e-15), 1e-15)
+        #loss += math.log(p_i)
 
     sys.exit()
     # make predictions on the testing set
     test_prob = {}
     img_no = 0
     for img, objs in test_objset.iteritems():
-        prob, cls = intutive_prediction(iso_objs=objs, heads=test_heads[img])
+        prob, cls, conf = intutive_prediction(iso_objs=objs, heads=test_heads[img])
         test_prob[img] = prob
 
         img_no += 1
