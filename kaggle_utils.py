@@ -263,6 +263,22 @@ def show_accuracy_matrix(train_prob_mat, train_cls_mat, val_prob_mat, val_cls_ma
     plt.xticks(range(len(CLASSES)), CLASSES)
     plt.yticks(range(len(CLASSES)), CLASSES)
     plt.show()
+def show_confusion_matrix(mat):
+    mat = mat.astype(np.float32)
+    cls_total = np.sum(mat, axis=1)
+    for r in range(mat.shape[0]):
+        if(cls_total[r] != 0):
+            mat[r] = mat[r]/cls_total[r]
+
+    fig, ax = plt.subplots(1, 1)
+    ax.matshow(mat, aspect='equal')
+    for (r, c), z in np.ndenumerate(mat):
+        ax.text(c, r, '{:0.2f}'.format(z), ha='center', va='center')
+    ax.set_title('Confusion matrix')
+
+    plt.xticks(range(len(CLASSES)), CLASSES)
+    plt.yticks(range(len(CLASSES)), CLASSES)
+    plt.show()
 
 if __name__=='__main__':
     print('Nothing to execute')

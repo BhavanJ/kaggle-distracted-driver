@@ -7,6 +7,7 @@ import math
 from feat_gen import compute_features
 from kaggle_utils import plot_catwise_centroids
 from copy import deepcopy
+from kaggle_utils import show_confusion_matrix
 
 CLASSES = ('c0', 'c1', 'c2', 'c3','c4','c5','c6','c7','c8','c9')
 HEAD_OBJS = ('c0_head', 'c1_head', 'c2_head', 'c3_head','c4_head','c5_head','c6_head','c7_head','c8_head','c9_head')
@@ -100,14 +101,15 @@ def filter_multiples(objs, labels):
             filt_objs[label] = []
     return filt_objs, found, max_score, cls
 
-def _reverse_prediction(iso_objs, likely):
-    def __is_present(objs, obj_cls):
-        if(objs[obj_cls]):
-            return objs[obj_cls][4]
-        else:
-            return 0.0
+def __is_present(objs, obj_cls):
+    if(objs[obj_cls]):
+        return objs[obj_cls][4]
+    else:
+        return 0.0
 
-    conf_score = 0.0
+def _reverse_prediction(iso_objs, likely):
+
+    conf_score = 1e-14
     if(likely == 'c0'):
         # both_hands_steering should be present
         conf_score += __is_present(iso_objs, 'both_hands_steering')
@@ -167,7 +169,7 @@ def _forward_cls_prediction(iso_objs):
         return feat_val
 
 
-    i_cls_idx = 
+    i_cls_idx = -100
     i_prob = 0.
     # TODO: find the proper threshold for all objects using the score distribution for all classes.
     # for now let it be 0.95
@@ -182,6 +184,8 @@ def _forward_cls_prediction(iso_objs):
 
     if(bhs > 0.95):
         # c0 or c9
+        i_cls_idx = 0
+        i_prob = bhs
     else:
         if(rhp > 0.95):
             # c1
@@ -239,11 +243,17 @@ def _forward_cls_prediction(iso_objs):
                                 # c9
                                 i_cls_idx = 9
                                 i_prob = lhs
+                        else:
+                            # cannot resolve
+                            i_cls_idx = 0
+                            i_prob = 0.1
+
+    return i_cls_idx, i_prob
 
 def _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, likely):
 
     i_cls_idx = -100 
-    i_prob = 1e-14 
+    i_prob = 0.1
     i_conf = False
     # if the class is not certain in the head and fullimg based detectors, this can help to
     # resolve uncertainity.
@@ -308,36 +318,47 @@ def intutive_prediction(iso_objs, heads, fullimg_boxes):
                     i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, f_cls)
                     certain = i_conf
                     final_prob[i_cls] = i_prob
+                    pred_cls = CLASSES[i_cls]
                 else:
                     if(h_cls in ('c2_head', 'c7_head')):
                         # isolated objeccts are not getting detected for test images correctly. Take this path if they are not detected.
                         # final detection is the one with max score.
                         certain = True
                         final_prob[HEAD_OBJS.index(h_cls)] = max_score
+                        pred_cls = CLASSES[HEAD_OBJS.index(h_cls)]
                     else:
                         # not certain. either take help of isolated objs or set certain = False
-                        certain = False
+                        certain = True
                         final_prob[HEAD_OBJS.index(h_cls)] = max_score
+                        pred_cls = CLASSES[HEAD_OBJS.index(h_cls)]
             else:
                 # need to take help from isolated object detections to decide the final prob
                 print('Score is < threshold')
                 i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, f_cls)
                 certain = i_conf
                 final_prob[i_cls] = i_prob
+                pred_cls = CLASSES[i_cls]
         else:
             print('Detectors are contradictiing each other.')
             # detections from head and fullimage detector are contradicting. use isolated objects
             i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, 'conflict')
             certain = i_conf
             final_prob[i_cls] = i_prob
+            pred_cls = CLASSES[i_cls]
         
     else:
         # decision is wholey based on the isolated objects.
         i_cls, i_prob, i_conf = _isolated_obj_resolver(iso_objs, head_objs, fullimg_objs, 'unsolved')
         certain = i_conf
         final_prob[i_cls] = i_prob
+        pred_cls = CLASSES[i_cls]
 
-    return final_prob, pred_cls, certain
+    if(certain):
+        # normalize the prob
+        final_prob = (np.array(final_prob)/sum(final_prob))
+    else:
+        final_prob = np.array([0.1]*10)
+    return final_prob.tolist(), pred_cls, certain
     
 def cls_main(args):
     train_cls_info = get_cls_dict(args.csv)
@@ -378,7 +399,7 @@ def cls_main(args):
 
         del temp_train_fullimg
     test_fullimg = {}
-    """
+    
     for pkl_file in args.test_fullimg_files:
         print('Loading {:s}'.format(pkl_file))
         with open(pkl_file, 'r') as pf:
@@ -395,31 +416,36 @@ def cls_main(args):
                         full_img_boxes[cls] = []
                 test_fullimg[img] = deepcopy(full_img_boxes)
     del temp_test_fullimg
-    """
+    
     # make predictions on the training set
     report = np.zeros(shape=(len(CLASSES), len(CLASSES)), dtype=np.int32)
     loss = 0.0
     err_cnt = 0
     for img, act_cls in train_cls_info.iteritems():
-        print img
+        print(img)
         prob, pred_cls, conf = intutive_prediction(iso_objs=train_objset[img], heads=train_heads[img], fullimg_boxes=train_fullimg[img])
-        #pred_idx = CLASSES.index(pred_cls)
-        #act_idx = CLASSES.index(act_cls)
-        #if(pred_cls != act_cls):
-        #    err_cnt += 1
+        pred_idx = CLASSES.index(pred_cls)
+        act_idx = CLASSES.index(act_cls)
+        if(pred_cls != act_cls):
+            err_cnt += 1
 
-        #report[act_idx, pred_idx] = report[act_idx, pred_idx] + 1
+        report[act_idx, pred_idx] = report[act_idx, pred_idx] + 1
+        print act_idx
+        print(prob[act_idx])
+        p_i = prob[act_idx]
+        p_i = max(min(p_i, 1-1e-15), 1e-15)
+        loss += math.log(p_i)
 
-        #p_i = prob[act_idx]
-        #p_i = max(min(p_i, 1-1e-15), 1e-15)
-        #loss += math.log(p_i)
-
-    sys.exit()
+    loss = -loss/len(train_cls_info)
+    print('Error percent = {:f}%'.format((float(err_cnt)/len(train_cls_info))*100))
+    print('Loss = {:f}'.format(loss))
+    #show_confusion_matrix(report)
+    #sys.exit()
     # make predictions on the testing set
     test_prob = {}
     img_no = 0
     for img, objs in test_objset.iteritems():
-        prob, cls, conf = intutive_prediction(iso_objs=objs, heads=test_heads[img])
+        prob, cls, conf = intutive_prediction(iso_objs=objs, heads=test_heads[img], fullimg_boxes=test_fullimg[img])
         test_prob[img] = prob
 
         img_no += 1

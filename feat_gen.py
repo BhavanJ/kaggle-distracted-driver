@@ -318,6 +318,8 @@ def _filter_detections(obj_dict, head_mean_c, head_mean_box, steering_mean, trai
     print('Filtering multiple detections of radio...')
     # just reuse same method for radio also
     filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, head_mean_box, 'radio', thr=0.95, train=train)
+    # reuse the same method for drinking_near_steering
+    filtered_dict =  __filter_phone_or_cup(filtered_dict, head_mean_c, head_mean_box, 'drinking_near_steering', thr=0.95, train=train)
     print('Filtering wrists...')
     filtered_dict = __filter_wrists(filtered_dict, head_mean_c, train=train)
     print('Filtering of objects finished...')
