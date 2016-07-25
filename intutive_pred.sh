@@ -23,5 +23,6 @@ python -u intution_classifier.py --train-obj ../test/rcnn/output/kaggle_full_tra
     --csv ../driver_imgs_list.csv \
     --test-obj $test_obj_bbox_files\
     --test-head $test_head_bbox_files\
-    --test-fullimg $test_fullimg_bbox_files
+    --test-fullimg $test_fullimg_bbox_files\
+	--obj-pred ./objset_test_predictions.pkl
 

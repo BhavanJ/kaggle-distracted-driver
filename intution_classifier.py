@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument('--test-obj', dest='test_obj_files', nargs='+', help='Training object pickle files')
     parser.add_argument('--test-head', dest='test_head_files', nargs='+', help='Training object pickle files')
     parser.add_argument('--test-fullimg', dest='test_fullimg_files', nargs='+', help='Training object pickle files')
+    parser.add_argument('--obj-pred', dest='obj_pred', help='Objset 1.1 and 5 based prediction file')
     args = parser.parse_args()
     return args
 
@@ -353,12 +354,12 @@ def intutive_prediction(iso_objs, heads, fullimg_boxes):
         final_prob[i_cls] = i_prob
         pred_cls = CLASSES[i_cls]
 
-    if(certain):
-        # normalize the prob
-        final_prob = (np.array(final_prob)/sum(final_prob))
-    else:
-        final_prob = np.array([0.1]*10)
-    return final_prob.tolist(), pred_cls, certain
+    #if(certain):
+    #    # normalize the prob
+    #    final_prob = (np.array(final_prob)/sum(final_prob))
+    #else:
+    #    final_prob = np.array([0.1]*10)
+    return final_prob, pred_cls, certain
     
 def cls_main(args):
     train_cls_info = get_cls_dict(args.csv)
@@ -441,12 +442,21 @@ def cls_main(args):
     print('Loss = {:f}'.format(loss))
     #show_confusion_matrix(report)
     #sys.exit()
+
+    # use predictions based on objset 1.1 and 5 trained using dt/lr classifier
+    with open(args.obj_pred, 'r') as pf:
+        objset_pred = cPickle.load(pf)
+
     # make predictions on the testing set
     test_prob = {}
     img_no = 0
     for img, objs in test_objset.iteritems():
         prob, cls, conf = intutive_prediction(iso_objs=objs, heads=test_heads[img], fullimg_boxes=test_fullimg[img])
-        test_prob[img] = prob
+        # if not certain, use the probability from the objset classifier
+        if(conf):
+            test_prob[img] = prob
+        else:
+            test_prob[img] = objset_pred[img]
 
         img_no += 1
         if(img_no % 1000 == 0):
@@ -454,7 +464,7 @@ def cls_main(args):
 
     print('\nDone predicting prob of test images')
     with open('intutive_test_predictions.pkl', 'w') as pf:
-        cPickle.dump(test_predictions, pf)
+        cPickle.dump(test_prob, pf)
         print('Stored test predictions in {:s}'.format('intutive_test_predictions.pkl'))
 
 
